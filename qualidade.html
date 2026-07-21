@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Qualidade de Vendas — SSO</title>
+  <meta name="description" content="Qualidade de Vendas SSO — Conversão, faturamento e ticket médio por perfil de cliente">
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/qualidade.css">
+  <style>
+    /* Ajuste de top para filter-strip com nav presente */
+    .filter-strip { top: calc(var(--header-h) + 44px); }
+  </style>
+</head>
+<body>
+
+<header class="page-header">
+  <div class="header-inner">
+    <div class="brand">
+      <img src="assets/logo-sso.png" alt="SSO">
+      <div class="brand-text">
+        <h1>Qualidade de Vendas</h1>
+        <span>Conversão, faturamento e ticket médio por perfil de cliente</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span class="header-meta" id="last-update"></span>
+      <button class="btn-header btn-header-outline" id="btn-export-csv">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 10v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2M8 10V2M5 7l3 3 3-3"/></svg>
+        Exportar CSV
+      </button>
+      <button class="btn-header btn-header-solid" id="btn-export-pdf">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M5 8h6M5 5h6M5 11h4"/></svg>
+        Exportar PDF
+      </button>
+    </div>
+  </div>
+</header>
+
+<nav class="page-nav">
+  <div class="page-nav-inner">
+    <a href="index.html" class="nav-tab">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+      Dashboard Comercial
+    </a>
+    <a href="qualidade.html" class="nav-tab active">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12l4-4 3 3 5-6"/></svg>
+      Qualidade de Vendas
+    </a>
+  </div>
+</nav>
+
+<!-- Filter Strip -->
+<div class="filter-strip" id="filter-strip">
+  <div class="filter-strip-inner">
+    <span class="filter-label">Período</span>
+    <div class="month-pills" id="month-pills">
+      <button class="month-pill active" data-month="0">Todos</button>
+      <button class="month-pill" data-month="1">Jan</button>
+      <button class="month-pill" data-month="2">Fev</button>
+      <button class="month-pill" data-month="3">Mar</button>
+      <button class="month-pill" data-month="4">Abr</button>
+      <button class="month-pill" data-month="5">Mai</button>
+      <button class="month-pill" data-month="6">Jun</button>
+      <button class="month-pill" data-month="7">Jul</button>
+    </div>
+    <div class="filter-sep"></div>
+    <div class="filter-select-wrap">
+      <select class="filter-select" id="sel-vendedor"><option value="">Vendedor</option></select>
+      <span class="filter-select-arrow"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4l4 4 4-4"/></svg></span>
+    </div>
+    <div class="filter-select-wrap">
+      <select class="filter-select" id="sel-fonte"><option value="">Fonte do Lead</option></select>
+      <span class="filter-select-arrow"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4l4 4 4-4"/></svg></span>
+    </div>
+    <div class="filter-select-wrap">
+      <select class="filter-select" id="sel-tipo" style="max-width:200px"><option value="">Tipo de Contrato</option></select>
+      <span class="filter-select-arrow"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4l4 4 4-4"/></svg></span>
+    </div>
+    <div class="filter-select-wrap">
+      <select class="filter-select" id="sel-curva"><option value="">Curva ABC</option></select>
+      <span class="filter-select-arrow"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4l4 4 4-4"/></svg></span>
+    </div>
+    <button class="btn-clear" id="btn-clear" disabled>Limpar filtros</button>
+  </div>
+  <div class="chips-bar" id="chips-bar"></div>
+</div>
+
+<main class="page-main" id="page-main">
+
+  <!-- Cockpit Geral 7 cards -->
+  <section>
+    <div class="section-header">
+      <div>
+        <div class="section-title">Cockpit Geral</div>
+        <div class="section-sub" id="cockpit-period">Período completo — Jan a Jul 2026</div>
+      </div>
+      <div id="restore-btn" style="display:none">
+        <button class="btn-ver-ranking" id="btn-restore">Restaurar visão</button>
+      </div>
+    </div>
+    <div class="cockpit-grid-7">
+
+      <div class="kpi-card kpi-card-sm">
+        <div class="kpi-hint-text">COUNT de registros com Tipo de Contrato preenchido.</div>
+        <div class="kpi-card-top"><span class="kpi-label">Propostas Enviadas</span>
+          <div class="kpi-icon kpi-icon-wine"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2h12v9H2zM5 11v3M11 11v3M3 14h10"/></svg></div>
+        </div>
+        <div class="kpi-value" id="v-propostas">—</div>
+      </div>
+
+      <div class="kpi-card kpi-card-sm">
+        <div class="kpi-hint-text">COUNT onde STATUS = CONTRATO FECHADO.</div>
+        <div class="kpi-card-top"><span class="kpi-label">Qtd. de Vendas</span>
+          <div class="kpi-icon kpi-icon-success"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 4L6 11 3 8"/></svg></div>
+        </div>
+        <div class="kpi-value" id="v-vendas">—</div>
+      </div>
+
+      <div class="kpi-card kpi-card-sm">
+        <div class="kpi-hint-text">Vendas ÷ Propostas × 100. Calculado sobre o filtro atual sem status.</div>
+        <div class="kpi-card-top"><span class="kpi-label">Conversão Geral</span>
+          <div class="kpi-icon kpi-icon-copper"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14L14 2M5 2h7v7"/></svg></div>
+        </div>
+        <div class="kpi-value" id="v-conversao">—</div>
+      </div>
+
+      <div class="kpi-card kpi-card-sm">
+        <div class="kpi-hint-text">SUM(Valor Total) de contratos fechados com valor válido.</div>
+        <div class="kpi-card-top"><span class="kpi-label">Faturamento Total</span>
+          <div class="kpi-icon kpi-icon-success"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="10" rx="1.5"/><path d="M1 7h14"/></svg></div>
+        </div>
+        <div class="kpi-value compact" id="v-faturamento">—</div>
+      </div>
+
+      <div class="kpi-card kpi-card-sm">
+        <div class="kpi-hint-text">Faturamento ÷ quantidade de vendas com valor válido.</div>
+        <div class="kpi-card-top"><span class="kpi-label">Ticket Médio</span>
+          <div class="kpi-icon kpi-icon-copper"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M5 5h4.5a2.5 2.5 0 0 1 0 5H5M5 5H3M5 10H3"/></svg></div>
+        </div>
+        <div class="kpi-value compact" id="v-ticket">—</div>
+      </div>
+
+      <div class="kpi-card kpi-card-sm" id="card-maior-conversao">
+        <div class="kpi-hint-text">Curva ABC com maior taxa de conversão no período selecionado.</div>
+        <div class="kpi-card-top"><span class="kpi-label">Maior Conversão</span>
+          <div class="kpi-icon kpi-icon-wine"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2l1.8 3.6 4 .6-2.9 2.8.7 3.9L8 11l-3.6 1.9.7-3.9L2.1 6.2l4-.6z"/></svg></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <span class="insight-curva-badge" id="badge-maior-conv">—</span>
+          <div><div class="insight-value" id="v-maior-conv-pct">—</div><div class="insight-sub" id="v-maior-conv-label"></div></div>
+        </div>
+      </div>
+
+      <div class="kpi-card kpi-card-sm" id="card-maior-fat">
+        <div class="kpi-hint-text">Curva ABC com maior faturamento realizado no período selecionado.</div>
+        <div class="kpi-card-top"><span class="kpi-label">Maior Faturamento</span>
+          <div class="kpi-icon kpi-icon-success"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 10l4-6 4 4 4-5"/></svg></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <span class="insight-curva-badge" id="badge-maior-fat">—</span>
+          <div><div class="insight-value compact" id="v-maior-fat-val">—</div><div class="insight-sub" id="v-maior-fat-label"></div></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Cards por Curva -->
+  <section>
+    <div class="section-header">
+      <div>
+        <div class="section-title">Detalhamento por Curva</div>
+        <div class="section-sub">Clique em uma curva para filtrar todos os indicadores</div>
+      </div>
+    </div>
+    <div class="curva-cards-grid" id="curva-cards-grid"><!-- preenchido por JS --></div>
+  </section>
+
+  <!-- Gráficos Row 1 -->
+  <div class="charts-row charts-row-2">
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div><div class="chart-title">Propostas × Vendas por Curva</div><div class="chart-sub">Colunas agrupadas na ordem A+ → Sem classificação</div></div>
+      </div>
+      <div class="chart-canvas-wrap" style="height:280px"><canvas id="chart-prop-vend"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div><div class="chart-title">Conversão por Curva</div><div class="chart-sub">Linha tracejada = conversão geral do período</div></div>
+      </div>
+      <div class="chart-canvas-wrap" style="height:280px"><canvas id="chart-conversao"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Gráficos Row 2 -->
+  <div class="charts-row charts-row-2">
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div><div class="chart-title">Faturamento e Ticket Médio</div><div class="chart-sub">Barras = faturamento · Linha = ticket médio</div></div>
+      </div>
+      <div class="chart-canvas-wrap" style="height:280px"><canvas id="chart-fat-ticket"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div><div class="chart-title">Matriz de Qualidade</div><div class="chart-sub">X = conversão · Y = ticket médio · Tamanho = faturamento</div></div>
+      </div>
+      <div class="chart-canvas-wrap" style="height:280px"><canvas id="chart-matriz"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Tabela Executiva -->
+  <div class="table-card">
+    <div class="table-header-bar">
+      <div>
+        <div class="section-title">Tabela Executiva por Curva ABC</div>
+        <div class="section-sub">Clique em qualquer cabeçalho para ordenar</div>
+      </div>
+    </div>
+    <div class="table-wrapper">
+      <table class="exec-table" id="exec-table">
+        <thead><tr>
+          <th data-col="curva">Curva <span class="sort-arrow" id="sa-curva"></span></th>
+          <th data-col="faixa" style="text-align:left">Faixa</th>
+          <th data-col="propostas">Propostas <span class="sort-arrow" id="sa-propostas"></span></th>
+          <th data-col="vendas">Vendas <span class="sort-arrow" id="sa-vendas"></span></th>
+          <th data-col="conversao">Conversão <span class="sort-arrow" id="sa-conversao"></span></th>
+          <th data-col="prevFat">Previsão <span class="sort-arrow" id="sa-prevFat"></span></th>
+          <th data-col="fatVendas">Faturamento <span class="sort-arrow" id="sa-fatVendas"></span></th>
+          <th data-col="ticketMedio">Ticket Médio <span class="sort-arrow" id="sa-ticketMedio"></span></th>
+          <th data-col="participacaoVendas">Part. Vendas <span class="sort-arrow" id="sa-participacaoVendas"></span></th>
+          <th data-col="participacaoFat">Part. Fat. <span class="sort-arrow" id="sa-participacaoFat"></span></th>
+          <th data-col="vendasSemValor">Vend. s/ Valor <span class="sort-arrow" id="sa-vendasSemValor"></span></th>
+        </tr></thead>
+        <tbody id="table-body"></tbody>
+        <tfoot id="table-foot"></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══════════ CORRELAÇÕES AVANÇADAS ═══════════ -->
+
+  <!-- 1. Curva ABC × Vendedor -->
+  <div class="chart-card" style="margin-top:0">
+    <div class="chart-card-header">
+      <div>
+        <div class="chart-title">Curva ABC por Vendedor</div>
+        <div class="chart-sub">VINICIOS e VINICIUS tratados separadamente</div>
+      </div>
+      <div class="metric-selector" id="metric-vend-curva">
+        <button class="metric-btn active" data-metric="propostas">Propostas</button>
+        <button class="metric-btn" data-metric="vendas">Vendas</button>
+        <button class="metric-btn" data-metric="conversao">Conversão</button>
+        <button class="metric-btn" data-metric="fatVendas">Faturamento</button>
+        <button class="metric-btn" data-metric="ticketMedio">Ticket Médio</button>
+      </div>
+    </div>
+    <div class="matrix-wrapper" id="matrix-vend-curva"></div>
+  </div>
+
+  <!-- 2. Curva ABC × Fonte do Lead -->
+  <div class="chart-card">
+    <div class="chart-card-header">
+      <div>
+        <div class="chart-title">Curva ABC por Fonte do Lead</div>
+        <div class="chart-sub">Nomes preservados exatamente — sem unificação</div>
+      </div>
+      <div class="metric-selector" id="metric-fonte-curva">
+        <button class="metric-btn active" data-metric="propostas">Propostas</button>
+        <button class="metric-btn" data-metric="vendas">Vendas</button>
+        <button class="metric-btn" data-metric="conversao">Conversão</button>
+        <button class="metric-btn" data-metric="fatVendas">Faturamento</button>
+      </div>
+    </div>
+    <div class="chart-canvas-wrap" style="height:340px"><canvas id="chart-fonte-curva"></canvas></div>
+  </div>
+
+  <!-- 3. Curva ABC × Tipo de Contrato -->
+  <div class="chart-card">
+    <div class="chart-card-header">
+      <div>
+        <div class="chart-title">Curva ABC por Tipo de Contrato</div>
+        <div class="chart-sub">Top 15 por propostas — sem unificação de nomenclaturas</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div class="metric-selector" id="metric-tipo-curva">
+          <button class="metric-btn active" data-metric="vendas">Vendas</button>
+          <button class="metric-btn" data-metric="propostas">Propostas</button>
+          <button class="metric-btn" data-metric="conversao">Conversão</button>
+          <button class="metric-btn" data-metric="fatVendas">Faturamento</button>
+          <button class="metric-btn" data-metric="ticketMedio">Ticket Médio</button>
+        </div>
+        <button class="btn-ver-ranking" id="btn-open-tipo-drawer">Ranking completo</button>
+      </div>
+    </div>
+    <div class="matrix-wrapper" id="matrix-tipo-curva"></div>
+  </div>
+
+</main>
+
+<!-- Drawer: Ranking completo Tipo de Contrato × Curva -->
+<div class="drawer-overlay" id="tipo-drawer-overlay"></div>
+<aside class="drawer" id="tipo-drawer" aria-label="Ranking completo Tipo de Contrato por Curva">
+  <div class="drawer-head">
+    <h3>Ranking Completo — Tipo de Contrato × Curva</h3>
+    <button class="btn-drawer-close" id="btn-close-tipo-drawer" title="Fechar">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 1l12 12M13 1L1 13"/></svg>
+    </button>
+  </div>
+  <div class="drawer-search">
+    <input class="drawer-search-input" id="tipo-drawer-search" placeholder="Buscar tipo de contrato..." autocomplete="off">
+  </div>
+  <div class="drawer-body" id="tipo-drawer-body"></div>
+</aside>
+
+<script src="js/data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/qualidade.js"></script>
+</body>
+</html>

@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Comercial — SSO</title>
+  <meta name="description" content="Dashboard Comercial Executivo SSO — Resultados Janeiro a Julho 2026">
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/qualidade.css">
+  <style>.filter-strip { top: calc(var(--header-h) + 44px); }</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     HEADER
+═══════════════════════════════════════════════════════ -->
+<header class="page-header">
+  <div class="header-inner">
+    <div class="brand">
+      <img src="assets/logo-sso.png" alt="SSO">
+      <div class="brand-text">
+        <h1>Dashboard Comercial</h1>
+        <span>Janeiro — Julho 2026</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span class="header-meta" id="last-update"></span>
+      <button class="btn-header btn-header-outline" id="btn-export-csv" title="Exportar dados agregados sem informações pessoais">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 10v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2M8 10V2M5 7l3 3 3-3"/></svg>
+        Exportar CSV
+      </button>
+      <button class="btn-header btn-header-solid" id="btn-export-pdf" title="Exportar PDF executivo">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M5 8h6M5 5h6M5 11h4"/></svg>
+        Exportar PDF
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Navegação entre páginas -->
+<nav class="page-nav">
+  <div class="page-nav-inner">
+    <a href="index.html" class="nav-tab active">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+      Dashboard Comercial
+    </a>
+    <a href="qualidade.html" class="nav-tab">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12l4-4 3 3 5-6"/></svg>
+      Qualidade de Vendas
+    </a>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════
+     FILTER STRIP
+═══════════════════════════════════════════════════════ -->
+<div class="filter-strip" id="filter-strip">
+  <div class="filter-strip-inner">
+    <span class="filter-label">Período</span>
+    <div class="month-pills" id="month-pills">
+      <button class="month-pill active" data-month="0">Todos</button>
+      <button class="month-pill" data-month="1">Jan</button>
+      <button class="month-pill" data-month="2">Fev</button>
+      <button class="month-pill" data-month="3">Mar</button>
+      <button class="month-pill" data-month="4">Abr</button>
+      <button class="month-pill" data-month="5">Mai</button>
+      <button class="month-pill" data-month="6">Jun</button>
+      <button class="month-pill" data-month="7">Jul</button>
+    </div>
+
+    <div class="filter-sep"></div>
+
+    <div class="filter-select-wrap">
+      <select class="filter-select" id="sel-vendedor"><option value="">Vendedor</option></select>
+      <span class="filter-select-arrow"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4l4 4 4-4"/></svg></span>
+    </div>
+
+    <div class="filter-select-wrap">
+      <select class="filter-select" id="sel-fonte"><option value="">Fonte do Lead</option></select>
+      <span class="filter-select-arrow"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4l4 4 4-4"/></svg></span>
+    </div>
+
+    <div class="filter-select-wrap">
+      <select class="filter-select" id="sel-status"><option value="">Status</option></select>
+      <span class="filter-select-arrow"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4l4 4 4-4"/></svg></span>
+    </div>
+
+    <div class="filter-select-wrap">
+      <select class="filter-select" id="sel-tipo" style="max-width:200px"><option value="">Tipo de Contrato</option></select>
+      <span class="filter-select-arrow"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4l4 4 4-4"/></svg></span>
+    </div>
+
+    <button class="btn-clear" id="btn-clear" disabled>Limpar filtros</button>
+  </div>
+  <div class="chips-bar" id="chips-bar"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     MAIN CONTENT
+═══════════════════════════════════════════════════════ -->
+<main class="page-main" id="page-main">
+
+  <!-- KPI Cockpit -->
+  <section>
+    <div class="section-header">
+      <div>
+        <div class="section-title">Cockpit Executivo</div>
+        <div class="section-sub" id="cockpit-period">Período completo — Jan a Jul 2026</div>
+      </div>
+      <div id="restore-btn" style="display:none">
+        <button class="btn-ver-ranking" id="btn-restore">Restaurar visão</button>
+      </div>
+    </div>
+    <div class="cockpit-grid" id="cockpit">
+
+      <div class="kpi-card" id="kpi-leads">
+        <div class="kpi-hint-text">COUNT de todas as linhas comerciais válidas do período selecionado. Nunca usa SUM(QTD).</div>
+        <div class="kpi-card-top">
+          <span class="kpi-label">Leads / Oportunidades</span>
+          <div class="kpi-icon kpi-icon-wine">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="v-leads">—</div>
+        <div class="kpi-footer">
+          <span class="kpi-delta neutral" id="d-leads"></span>
+        </div>
+      </div>
+
+      <div class="kpi-card" id="kpi-propostas">
+        <div class="kpi-hint-text">COUNT de registros com Tipo de Contrato preenchido.</div>
+        <div class="kpi-card-top">
+          <span class="kpi-label">Propostas Enviadas</span>
+          <div class="kpi-icon kpi-icon-wine">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2h12v9H2zM5 11v3M11 11v3M3 14h10"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="v-propostas">—</div>
+        <div class="kpi-footer">
+          <span class="kpi-delta neutral" id="d-propostas"></span>
+        </div>
+      </div>
+
+      <div class="kpi-card" id="kpi-previsao">
+        <div class="kpi-hint-text">SUM(Valor Total) de propostas com Tipo de Contrato preenchido e valor numérico válido.</div>
+        <div class="kpi-card-top">
+          <span class="kpi-label">Previsão de Faturamento</span>
+          <div class="kpi-icon kpi-icon-copper">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M5 5h4.5a2.5 2.5 0 0 1 0 5H5M5 5H3M5 10H3"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value compact" id="v-previsao">—</div>
+        <div class="kpi-footer">
+          <span class="kpi-delta neutral" id="d-previsao"></span>
+        </div>
+      </div>
+
+      <div class="kpi-card" id="kpi-vendas">
+        <div class="kpi-hint-text">COUNT de registros onde STATUS (normalizado) = "CONTRATO FECHADO".</div>
+        <div class="kpi-card-top">
+          <span class="kpi-label">Qtd. de Vendas</span>
+          <div class="kpi-icon kpi-icon-success">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 4L6 11 3 8"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="v-vendas">—</div>
+        <div class="kpi-footer">
+          <span class="kpi-delta neutral" id="d-vendas"></span>
+        </div>
+      </div>
+
+      <div class="kpi-card" id="kpi-faturamento">
+        <div class="kpi-hint-text">SUM(Valor Total) somente de registros com STATUS = "CONTRATO FECHADO" e valor válido.</div>
+        <div class="kpi-card-top">
+          <span class="kpi-label">Faturamento de Vendas</span>
+          <div class="kpi-icon kpi-icon-success">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="10" rx="1.5"/><path d="M1 7h14M5 7v6M11 7v6"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value compact" id="v-faturamento">—</div>
+        <div class="kpi-footer">
+          <span class="kpi-delta neutral" id="d-faturamento"></span>
+        </div>
+      </div>
+
+      <div class="kpi-card" id="kpi-conversao">
+        <div class="kpi-hint-text">Qtd. de Vendas ÷ Propostas Enviadas × 100. Nunca Propostas ÷ Vendas.</div>
+        <div class="kpi-card-top">
+          <span class="kpi-label">Conversão de Vendas</span>
+          <div class="kpi-icon kpi-icon-copper">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14L14 2M5 2h7v7"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value" id="v-conversao">—</div>
+        <div class="kpi-footer">
+          <span class="kpi-delta neutral" id="d-conversao"></span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Charts Row 1: Monthly Evolution + Financial -->
+  <div class="charts-row charts-row-2">
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div>
+          <div class="chart-title">Evolução Mensal de Volume</div>
+          <div class="chart-sub">Leads, Propostas e Vendas por mês</div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap" style="height:260px">
+        <canvas id="chart-volume"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div>
+          <div class="chart-title">Evolução Financeira Mensal</div>
+          <div class="chart-sub">Previsão de Faturamento vs Faturamento Realizado</div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap" style="height:260px">
+        <canvas id="chart-financial"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row 2: Status + Tipos Contrato -->
+  <div class="charts-row charts-row-3">
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div>
+          <div class="chart-title">Status Comercial</div>
+          <div class="chart-sub">Distribuição por status atual</div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap" style="height:260px">
+        <canvas id="chart-donut"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div>
+          <div class="chart-title">Tipos de Contrato</div>
+          <div class="chart-sub">Top 15 por propostas enviadas</div>
+        </div>
+        <button class="btn-ver-ranking" id="btn-open-drawer">Ver ranking completo</button>
+      </div>
+      <div class="chart-canvas-wrap" style="height:260px">
+        <canvas id="chart-tipos"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row 3: Fonte + Vendedores -->
+  <div class="charts-row charts-row-equal">
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div>
+          <div class="chart-title">Fonte do Lead</div>
+          <div class="chart-sub">Por propostas enviadas</div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap" style="height:280px">
+        <canvas id="chart-fonte"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div>
+          <div class="chart-title">Desempenho por Vendedor</div>
+          <div class="chart-sub">VINICIOS e VINICIUS tratados separadamente</div>
+        </div>
+        <div class="metric-selector" id="vendedor-metric-sel">
+          <button class="metric-btn active" data-metric="propostas">Propostas</button>
+          <button class="metric-btn" data-metric="vendas">Vendas</button>
+          <button class="metric-btn" data-metric="conversao">Conversão</button>
+          <button class="metric-btn" data-metric="fatVendas">Faturamento</button>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap" style="height:380px">
+        <canvas id="chart-vendedores"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Executive Table -->
+  <div class="table-card">
+    <div class="table-header-bar">
+      <div>
+        <div class="section-title">Resumo Executivo por Vendedor</div>
+        <div class="section-sub">Clique em qualquer cabeçalho para ordenar. Sem dados pessoais ou de empresa.</div>
+      </div>
+    </div>
+    <div class="table-wrapper">
+      <table class="exec-table" id="exec-table">
+        <thead>
+          <tr>
+            <th data-col="vendedor">Vendedor <span class="sort-arrow" id="sa-vendedor"></span></th>
+            <th data-col="leads">Leads <span class="sort-arrow" id="sa-leads"></span></th>
+            <th data-col="propostas">Propostas <span class="sort-arrow" id="sa-propostas"></span></th>
+            <th data-col="vendas">Vendas <span class="sort-arrow" id="sa-vendas"></span></th>
+            <th data-col="conversao">Conversão <span class="sort-arrow" id="sa-conversao"></span></th>
+            <th data-col="prevFat">Prev. Faturamento <span class="sort-arrow" id="sa-prevFat"></span></th>
+            <th data-col="fatVendas">Fat. Vendas <span class="sort-arrow" id="sa-fatVendas"></span></th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+        <tfoot id="table-foot"></tfoot>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<!-- ═══════════════════════════════════════════════════════
+     DRAWER — Ranking Completo Tipos de Contrato
+═══════════════════════════════════════════════════════ -->
+<div class="drawer-overlay" id="drawer-overlay"></div>
+<aside class="drawer" id="drawer-ranking" aria-label="Ranking completo de Tipos de Contrato">
+  <div class="drawer-head">
+    <h3>Ranking Completo — Tipos de Contrato</h3>
+    <button class="btn-drawer-close" id="btn-close-drawer" title="Fechar">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 1l12 12M13 1L1 13"/></svg>
+    </button>
+  </div>
+  <div class="drawer-search">
+    <input class="drawer-search-input" id="drawer-search" placeholder="Buscar tipo de contrato..." autocomplete="off">
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+</aside>
+
+<!-- Scripts -->
+<script src="js/data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
