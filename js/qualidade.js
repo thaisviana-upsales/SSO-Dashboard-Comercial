@@ -7,6 +7,7 @@
   // ── Estado ────────────────────────────────────────────────────────────
   const state = {
     months: [], vendedor: '', fonte: '', tipo: '', curva: '',
+    dateStart: null, dateEnd: null,
     tableSort: { col: 'fatVendas', asc: false },
   };
 
@@ -324,7 +325,7 @@
   function updateChips() {
     const bar = $('chips-bar');
     bar.innerHTML = '';
-    const has = state.months.length || state.vendedor || state.fonte || state.tipo || state.curva;
+    const has = state.months.length || state.vendedor || state.fonte || state.tipo || state.curva || state.dateStart;
     $('btn-clear').disabled = !has;
     $('restore-btn').style.display = has ? '' : 'none';
 
@@ -336,11 +337,23 @@
       bar.appendChild(el);
     };
 
+    const fmtBR = d => d ? d.split('-').reverse().join('/') : '';
     if (state.months.length) addChip('Período: ' + state.months.map(m => MES_NOME[m]).join(', '), () => { state.months = []; syncPills(); applyFilters(); updateChips(); });
     if (state.vendedor) addChip('Vendedor: ' + state.vendedor, () => { state.vendedor = ''; $('sel-vendedor').value = ''; applyFilters(); updateChips(); });
     if (state.fonte) addChip('Fonte: ' + state.fonte, () => { state.fonte = ''; $('sel-fonte').value = ''; applyFilters(); updateChips(); });
     if (state.tipo) addChip('Tipo: ' + (state.tipo.length > 28 ? state.tipo.slice(0, 26) + '…' : state.tipo), () => { state.tipo = ''; $('sel-tipo').value = ''; applyFilters(); updateChips(); });
     if (state.curva) addChip('Curva: ' + state.curva, () => { state.curva = ''; $('sel-curva').value = ''; applyFilters(); updateChips(); });
+    if (state.dateStart) {
+      const lbl = state.dateEnd && state.dateEnd !== state.dateStart
+        ? `Data: ${fmtBR(state.dateStart)} – ${fmtBR(state.dateEnd)}`
+        : `Data: ${fmtBR(state.dateStart)}`;
+      addChip(lbl, () => {
+        state.dateStart = null; state.dateEnd = null;
+        document.getElementById('dp-trigger-qual')?.dispatchEvent(new Event('_clear_external'));
+        applyFilters(); updateChips();
+        document.getElementById('dp-hist-warning')?.classList.remove('visible');
+      });
+    }
   }
 
   function syncPills() {
@@ -400,7 +413,9 @@
 
     $('btn-clear')?.addEventListener('click', () => {
       state.months = []; state.vendedor = ''; state.fonte = ''; state.tipo = ''; state.curva = '';
+      state.dateStart = null; state.dateEnd = null;
       ['sel-vendedor','sel-fonte','sel-tipo','sel-curva'].forEach(id => { if ($(id)) $(id).value = ''; });
+      document.getElementById('dp-hist-warning')?.classList.remove('visible');
       syncPills(); applyFilters(); updateChips();
     });
     $('btn-restore')?.addEventListener('click', () => $('btn-clear').click());
@@ -414,6 +429,13 @@
         else { state.tableSort.col = col; state.tableSort.asc = col === 'curva' || col === 'faixa'; }
         renderTable(Engine.byCurva(filtered));
       });
+    });
+
+    // Filtro por data (DatePicker)
+    document.addEventListener('qual-date-change', e => {
+      state.dateStart = e.detail.start;
+      state.dateEnd   = e.detail.end;
+      applyFilters(); updateChips();
     });
   }
 
@@ -711,4 +733,60 @@
       });
     },
   };
+})();
+
+/* ── DatePicker — Qualidade de Vendas ───────────────────────────────── */
+(function() {
+  const JULIO_2026 = '2026-07-01';
+
+  function isPreJuly(start, end) {
+    return start && end && start < JULIO_2026 && end < JULIO_2026;
+  }
+
+  function showHist(visible) {
+    const el = document.getElementById('dp-hist-warning');
+    if (el) el.classList.toggle('visible', visible);
+  }
+
+  function getMainState() {
+    // Acessar o state do módulo principal — usar evento customizado
+    return window._qualDateState || { dateStart: null, dateEnd: null };
+  }
+
+  window._qualDateState = { dateStart: null, dateEnd: null };
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const trigger = document.getElementById('dp-trigger-qual');
+    if (!trigger || typeof SSODatePicker === 'undefined') return;
+
+    const dp = new SSODatePicker({
+      triggerEl: trigger,
+      placeholder: 'Data específica',
+      onApply: function(start, end) {
+        window._qualDateState.dateStart = start;
+        window._qualDateState.dateEnd = end;
+        showHist(start && isPreJuly(start, end));
+        document.dispatchEvent(new CustomEvent('qual-date-change', { detail: { start, end } }));
+      },
+      onClear: function() {
+        window._qualDateState.dateStart = null;
+        window._qualDateState.dateEnd = null;
+        showHist(false);
+        document.dispatchEvent(new CustomEvent('qual-date-change', { detail: { start: null, end: null } }));
+      },
+    });
+
+    // Limpar também pelo botão principal
+    document.getElementById('btn-clear')?.addEventListener('click', function() {
+      dp.clear();
+      window._qualDateState.dateStart = null;
+      window._qualDateState.dateEnd = null;
+      showHist(false);
+    });
+
+    // O módulo qualidade.js (IIFE principal) escuta este evento e aplica o filtro
+    document.addEventListener('qual-date-change', function(e) {
+      // Já coberto pelo wiring abaixo no state
+    });
+  });
 })();
