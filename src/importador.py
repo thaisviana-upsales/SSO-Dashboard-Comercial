@@ -55,6 +55,7 @@ LINHA_HEADER = 4
 # Nomes canônicos dos cabeçalhos que queremos capturar
 # (compara após strip + upper para resistir a variações)
 HEADER_QTD           = "QTD"
+HEADER_DATA          = "DATA"                        # coluna B — data real
 HEADER_TIPO_CONTRATO = "TIPO DE CONTRATO"   # primeira ocorrência
 HEADER_VALOR_TOTAL   = "VALOR TOTAL"
 HEADER_STATUS        = "STATUS"
@@ -155,6 +156,60 @@ def _converter_valor_br(raw: Any) -> Optional[float]:
         return None
 
 
+def _converter_data(raw: Any, mes_num: int, ano: int) -> Optional[str]:
+    """
+    Converte o valor bruto da coluna DATA para string YYYY-MM-DD.
+    Aceita: datetime, date, float (serial Excel), string DD/MM/AAAA ou AAAA-MM-DD.
+    Retorna None para valores inválidos, vazios ou de texto não-date.
+    NÃO converte datas inválidas para a data atual.
+    """
+    if raw is None:
+        return None
+
+    # datetime ou date do openpyxl
+    if isinstance(raw, (datetime, date)):
+        try:
+            d = raw if isinstance(raw, date) else raw.date()
+            return d.strftime("%Y-%m-%d")
+        except Exception:
+            return None
+
+    # Float: serial date do Excel
+    if isinstance(raw, float):
+        try:
+            # Excel serial: dias desde 1900-01-01 (com bug de 1900 como bissexto)
+            from datetime import timedelta
+            base = date(1899, 12, 30)
+            d = base + timedelta(days=int(raw))
+            return d.strftime("%Y-%m-%d")
+        except Exception:
+            return None
+
+    s = str(raw).strip()
+    if not s or s.upper() in {"X", "NONE", "", "DATA", "#VALUE!", "#REF!", "#N/A"}:
+        return None
+
+    # Formato DD/MM/AAAA
+    m = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{4})$", s)
+    if m:
+        try:
+            d = date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+            return d.strftime("%Y-%m-%d")
+        except ValueError:
+            return None
+
+    # Formato AAAA-MM-DD
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", s)
+    if m:
+        try:
+            d = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+            return d.strftime("%Y-%m-%d")
+        except ValueError:
+            return None
+
+    return None
+
+
 def _localizar_colunas(ws, linha_header: int) -> Dict[str, Optional[int]]:
     """
     Lê a linha de cabeçalho e retorna um dict {campo: indice_coluna_0based}.
@@ -164,6 +219,7 @@ def _localizar_colunas(ws, linha_header: int) -> Dict[str, Optional[int]]:
     """
     colunas: Dict[str, Optional[int]] = {
         "qtd":           None,
+        "data":          None,   # coluna B DATA — data real do registro
         "tipo_contrato": None,   # primeira ocorrência
         "valor_total":   None,
         "status":        None,
@@ -182,6 +238,9 @@ def _localizar_colunas(ws, linha_header: int) -> Dict[str, Optional[int]]:
 
         if nome == HEADER_QTD and colunas["qtd"] is None:
             colunas["qtd"] = idx
+
+        elif nome == HEADER_DATA and colunas["data"] is None:
+            colunas["data"] = idx
 
         elif nome == HEADER_TIPO_CONTRATO and colunas["tipo_contrato"] is None:
             colunas["tipo_contrato"] = idx
@@ -337,6 +396,7 @@ def importar_excel(
                 return row[idx]
 
             qtd_raw        = _get("qtd")
+            data_raw       = _get("data")          # coluna B DATA
             contrato_raw   = _get("tipo_contrato")
             valor_raw      = _get("valor_total")
             status_raw     = _get("status")
@@ -368,6 +428,12 @@ def importar_excel(
 
             # Curva ABC: classificar conforme regras de porte
             curva_abc = classificar_curva(qtd_func_convertida)
+
+            # Data da coluna B: converter para YYYY-MM-DD
+            data_referencia = _converter_data(data_raw, mes_num, ano)
+            # Registros pré-julho 2026 sem data real → mantém None (sem inventar)
+            # O frontend mostrará aviso para filtros diários nesse período.
+            tem_data_real = data_referencia is not None
 
             # Valor total: converter formato BR
             valor_convertido = _converter_valor_br(valor_raw)
@@ -406,6 +472,9 @@ def importar_excel(
                 "fonte_lead":         fonte_lead,
                 "vendedor":           vendedor,
                 "flag_valor_invalido":        flag_valor_invalido,
+                # ── Campos DATA (Etapa 3 — Filtro por Data Específica) ──
+                "data_referencia":    data_referencia,   # YYYY-MM-DD ou None
+                "tem_data_real":      tem_data_real,     # bool: se tem data da col B
                 # ── Campos Curva ABC (Etapa 2 — Qualidade de Vendas) ──
                 "quantidade_funcionarios_original": qtd_func_raw,
                 "quantidade_funcionarios":          qtd_func_convertida,

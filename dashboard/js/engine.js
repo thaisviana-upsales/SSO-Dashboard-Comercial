@@ -17,13 +17,36 @@ const Engine = (() => {
   const CURVAS_CORES  = { 'A+':'#1A7A4A','A':'#4E6AF5','B':'#C98A5B','C':'#85200C','D':'#667085','Sem classificação':'#98A2B3' };
 
   // ── Filtro global ──────────────────────────────────────────────────────
+  function _dateInRange(record, f) {
+    if (!f.dateStart && !f.dateEnd) return true;  // sem filtro de data
+    const dr = record.data_referencia;
+    if (!dr) return false;  // sem data real → excluído quando há filtro de data
+    if (f.dateStart && dr < f.dateStart) return false;
+    if (f.dateEnd   && dr > f.dateEnd)   return false;
+    return true;
+  }
+
   function filter(records, f) {
     return records.filter(r => {
       if (f.months?.length && !f.months.includes(r.mes_numero)) return false;
-      if (f.vendedor?.length && !f.vendedor.includes(r.vendedor)) return false;
-      if (f.fonte?.length && !f.fonte.includes(r.fonte_lead)) return false;
-      if (f.status?.length && !f.status.includes(normStatus(r.status))) return false;
-      if (f.tipo?.length && !f.tipo.includes(r.tipo_contrato)) return false;
+      if (f.status  && normStatus(r.status)  !== normStatus(f.status))  return false;
+      if (f.vendedor && r.vendedor !== f.vendedor) return false;
+      if (f.fonte   && r.fonte_lead   !== f.fonte)   return false;
+      if (f.tipo    && r.tipo_contrato !== f.tipo)    return false;
+      if (!_dateInRange(r, f)) return false;
+      return true;
+    });
+  }
+
+  // Filtro sem status (página Qualidade de Vendas)
+  function filterQualidade(records, f) {
+    return records.filter(r => {
+      if (f.months?.length && !f.months.includes(r.mes_numero)) return false;
+      if (f.vendedor && r.vendedor !== f.vendedor) return false;
+      if (f.fonte && r.fonte_lead !== f.fonte) return false;
+      if (f.tipo && r.tipo_contrato !== f.tipo) return false;
+      if (f.curva && (r.curva_abc_cliente || 'Sem classificação') !== f.curva) return false;
+      if (!_dateInRange(r, f)) return false;
       return true;
     });
   }
@@ -225,17 +248,8 @@ const Engine = (() => {
     });
   }
 
-  // Filtro sem status (página Qualidade de Vendas)
-  function filterQualidade(records, f) {
-    return records.filter(r => {
-      if (f.months?.length && !f.months.includes(r.mes_numero)) return false;
-      if (f.vendedor && r.vendedor !== f.vendedor) return false;
-      if (f.fonte && r.fonte_lead !== f.fonte) return false;
-      if (f.tipo && r.tipo_contrato !== f.tipo) return false;
-      if (f.curva && (r.curva_abc_cliente || 'Sem classificação') !== f.curva) return false;
-      return true;
-    });
-  }
+
+
 
   // ── Tabulação cruzada (Vendedor/Fonte/Tipo × Curva) ───────────────────
   function crossTabMetric(records, rowField) {

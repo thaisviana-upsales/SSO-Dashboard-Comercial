@@ -1,0 +1,128 @@
+/* datepicker.css — Estilos do SSODatePicker */
+
+/* ── Trigger button ──────────────────────────────────────────────────── */
+.dp-trigger {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 0 14px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--gray-200); background: var(--card);
+  font-size: 12px; font-weight: 500; color: var(--gray-400);
+  cursor: pointer; transition: all .15s; white-space: nowrap;
+  font-family: inherit;
+}
+.dp-trigger::before {
+  content: ''; display: block; width: 13px; height: 13px; flex-shrink: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='none' stroke='%23667085' stroke-width='1.5' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='2' y='3' width='12' height='11' rx='1.5'/%3E%3Cpath d='M5 1v4M11 1v4M2 7h12'/%3E%3C/svg%3E");
+  background-size: contain; background-repeat: no-repeat;
+}
+.dp-trigger:hover { border-color: var(--wine); color: var(--wine); }
+.dp-trigger.dp-active { border-color: var(--wine); box-shadow: 0 0 0 2px rgba(133,32,12,.12); }
+.dp-trigger.dp-has-value { color: var(--wine); border-color: var(--wine); background: rgba(133,32,12,.04); font-weight: 600; }
+
+/* ── Panel ───────────────────────────────────────────────────────────── */
+.dp-panel {
+  background: var(--card); border: 1px solid var(--gray-100);
+  border-radius: 12px; box-shadow: 0 8px 32px rgba(18,18,18,.14);
+  overflow: hidden; width: 560px; animation: dpFadeIn .12s ease;
+}
+@keyframes dpFadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+.dp-inner { display: flex; }
+
+/* ── Shortcuts ───────────────────────────────────────────────────────── */
+.dp-shortcuts {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 14px 0; border-right: 1px solid var(--gray-100);
+  min-width: 136px;
+}
+.dp-shortcut {
+  background: none; border: none; text-align: left;
+  padding: 7px 16px; font-size: 12px; font-weight: 500;
+  color: var(--gray-400); cursor: pointer; transition: all .1s;
+  font-family: inherit;
+}
+.dp-shortcut:hover { background: rgba(133,32,12,.05); color: var(--wine); }
+
+/* ── Calendar area ───────────────────────────────────────────────────── */
+.dp-cal-area { flex: 1; padding: 14px 16px; }
+.dp-cal-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.dp-month-label { font-size: 13px; font-weight: 700; color: var(--graphite); text-transform: capitalize; }
+.dp-nav-btn {
+  background: none; border: 1px solid var(--gray-100); border-radius: 6px;
+  width: 26px; height: 26px; cursor: pointer; font-size: 16px; line-height: 1;
+  color: var(--gray-400); transition: all .12s; display: flex; align-items: center; justify-content: center;
+}
+.dp-nav-btn:hover { border-color: var(--wine); color: var(--wine); }
+
+.dp-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 4px; }
+.dp-weekdays span { text-align: center; font-size: 10px; font-weight: 700; color: var(--gray-300); padding: 3px 0; text-transform: uppercase; letter-spacing: .04em; }
+
+.dp-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.dp-day {
+  text-align: center; padding: 5px 2px; border-radius: 6px;
+  font-size: 12px; font-weight: 500; color: var(--graphite);
+  cursor: pointer; transition: all .1s; user-select: none;
+}
+.dp-day:hover:not(.dp-empty) { background: rgba(133,32,12,.08); color: var(--wine); }
+.dp-today { font-weight: 800; color: var(--wine); }
+.dp-sel-start, .dp-sel-end { background: var(--wine) !important; color: #fff !important; border-radius: 6px; }
+.dp-in-range { background: rgba(133,32,12,.10); border-radius: 0; color: var(--wine); }
+.dp-hover-range { background: rgba(133,32,12,.06); border-radius: 0; }
+.dp-sel-start.dp-in-range, .dp-sel-end.dp-in-range { border-radius: 6px; }
+.dp-empty { cursor: default; }
+
+/* ── Mode row ────────────────────────────────────────────────────────── */
+.dp-mode-row { display: flex; gap: 6px; margin-top: 10px; }
+.dp-mode-btn {
+  flex: 1; padding: 5px; border: 1px solid var(--gray-200); border-radius: 6px;
+  background: none; font-size: 11px; font-weight: 500; color: var(--gray-400);
+  cursor: pointer; transition: all .12s; font-family: inherit;
+}
+.dp-mode-btn.active { border-color: var(--wine); color: var(--wine); background: rgba(133,32,12,.05); font-weight: 600; }
+.dp-mode-btn:hover:not(.active) { border-color: var(--gray-300); color: var(--graphite); }
+
+.dp-selection-label {
+  margin-top: 8px; font-size: 11px; font-weight: 600;
+  color: var(--wine); text-align: center;
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────── */
+.dp-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; border-top: 1px solid var(--gray-100);
+  background: var(--gray-50);
+}
+.dp-btn-clear {
+  background: none; border: none; font-size: 12px; color: var(--gray-400);
+  cursor: pointer; font-family: inherit; padding: 4px 8px; border-radius: 5px;
+}
+.dp-btn-clear:hover { color: var(--alert); }
+.dp-btn-apply {
+  background: var(--wine); color: #fff; border: none; border-radius: 7px;
+  padding: 6px 20px; font-size: 12px; font-weight: 600; cursor: pointer;
+  font-family: inherit; transition: background .12s;
+}
+.dp-btn-apply:hover:not(:disabled) { background: var(--wine-deep); }
+.dp-btn-apply:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ── Historical warning ──────────────────────────────────────────────── */
+.dp-hist-warning {
+  margin: 8px 20px 0; padding: 10px 14px;
+  background: rgba(201,138,91,.08); border: 1px solid rgba(201,138,91,.3);
+  border-radius: 8px; font-size: 11px; color: #7A5020; line-height: 1.5;
+  display: none;
+}
+.dp-hist-warning.visible { display: block; }
+
+/* ── Responsive ──────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .dp-panel { width: calc(100vw - 16px); max-width: 440px; }
+  .dp-shortcuts { display: none; }
+  .dp-panel { width: calc(100vw - 16px); }
+}
+@media (max-width: 480px) {
+  .dp-panel { width: calc(100vw - 16px); border-radius: 12px 12px 0 0; }
+  .dp-day { font-size: 11px; padding: 4px 1px; }
+}

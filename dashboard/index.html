@@ -8,6 +8,7 @@
   <meta name="robots" content="noindex">
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/qualidade.css">
+  <link rel="stylesheet" href="css/datepicker.css">
   <style>.filter-strip { top: calc(var(--header-h) + 44px); }</style>
 </head>
 <body>
@@ -91,7 +92,14 @@
       <span class="filter-select-arrow"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4l4 4 4-4"/></svg></span>
     </div>
 
+    <div class="filter-sep"></div>
+
+    <button class="dp-trigger" id="dp-trigger-main" title="Filtrar por data específica ou intervalo">Data específica</button>
+
     <button class="btn-clear" id="btn-clear" disabled>Limpar filtros</button>
+  </div>
+  <div class="dp-hist-warning" id="dp-hist-warning">
+    ⚠️ Os dados históricos anteriores a julho de 2026 possuem visão consolidada mensal e não podem ser filtrados com precisão diária.
   </div>
   <div class="chips-bar" id="chips-bar"></div>
 </div>
@@ -336,6 +344,7 @@
 <script src="js/data.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="js/engine.js"></script>
+<script src="js/datepicker.js"></script>
 <script src="js/charts.js"></script>
 <script src="js/app.js"></script>
 </body>
