@@ -5,11 +5,13 @@
 (() => {
   // ── Estado ────────────────────────────────────────────────────────────
   const state = {
-    months: [],          // [] = todos
+    months: [],
     vendedor: '',
     fonte: '',
     status: '',
     tipo: '',
+    dateStart: null,
+    dateEnd: null,
     vendedorMetric: 'propostas',
     tableSort: { col: 'propostas', asc: false },
   };
@@ -27,11 +29,13 @@
   // ── Aplicar filtros ───────────────────────────────────────────────────
   function applyFilters() {
     filtered = Engine.filter(ALL, {
-      months: state.months,
-      vendedor: state.vendedor ? [state.vendedor] : [],
-      fonte: state.fonte ? [state.fonte] : [],
-      status: state.status ? [state.status] : [],
-      tipo: state.tipo ? [state.tipo] : [],
+      months:    state.months,
+      vendedor:  state.vendedor ? [state.vendedor] : [],
+      fonte:     state.fonte    ? [state.fonte]    : [],
+      status:    state.status   ? [state.status]   : [],
+      tipo:      state.tipo     ? [state.tipo]     : [],
+      dateStart: state.dateStart,
+      dateEnd:   state.dateEnd,
     });
     renderAll();
   }
@@ -194,7 +198,7 @@
   function updateChips() {
     const bar = $('chips-bar');
     bar.innerHTML = '';
-    const hasFilter = state.months.length || state.vendedor || state.fonte || state.status || state.tipo;
+    const hasFilter = state.months.length || state.vendedor || state.fonte || state.status || state.tipo || state.dateStart;
     $('btn-clear').disabled = !hasFilter;
     $('restore-btn').style.display = hasFilter ? '' : 'none';
 
@@ -206,6 +210,7 @@
       bar.appendChild(chip);
     };
 
+    const fmtBRd = d => d ? d.split('-').reverse().join('/') : '';
     if (state.months.length) {
       const labels = state.months.map(m => Engine.MES_NOME[m]).join(', ');
       add('Periodo: ' + labels, () => { state.months = []; syncMonthPills(); applyFilters(); updateChips(); });
@@ -216,6 +221,17 @@
     if (state.tipo) {
       const label = state.tipo.length > 28 ? state.tipo.slice(0, 26) + '…' : state.tipo;
       add('Tipo: ' + label, () => { state.tipo = ''; $('sel-tipo').value = ''; applyFilters(); updateChips(); });
+    }
+    if (state.dateStart) {
+      const lbl = state.dateEnd && state.dateEnd !== state.dateStart
+        ? `Data: ${fmtBRd(state.dateStart)} – ${fmtBRd(state.dateEnd)}`
+        : `Data: ${fmtBRd(state.dateStart)}`;
+      add(lbl, () => {
+        state.dateStart = null; state.dateEnd = null;
+        if (window._mainDP) window._mainDP.clear();
+        document.getElementById('dp-hist-warning')?.classList.remove('visible');
+        applyFilters(); updateChips();
+      });
     }
   }
 
@@ -295,7 +311,10 @@
     // Limpar tudo
     $('btn-clear').addEventListener('click', () => {
       state.months = []; state.vendedor = ''; state.fonte = ''; state.status = ''; state.tipo = '';
+      state.dateStart = null; state.dateEnd = null;
       $('sel-vendedor').value = ''; $('sel-fonte').value = ''; $('sel-status').value = ''; $('sel-tipo').value = '';
+      if (window._mainDP) window._mainDP.clear();
+      document.getElementById('dp-hist-warning')?.classList.remove('visible');
       syncMonthPills(); applyFilters(); updateChips();
     });
 
@@ -341,9 +360,29 @@
   // ── Bootstrap ─────────────────────────────────────────────────────────
   function init() {
     $('last-update').textContent = 'Dados de: ' + SSO_EXPORTED_AT;
-
     populateSelects();
     wireEvents();
+
+    // DatePicker — inicializado em try/catch isolado para não bloquear o restante
+    try {
+      const dpTrigger = document.getElementById('dp-trigger-main');
+      if (dpTrigger && typeof SSODatePicker !== 'undefined') {
+        window._mainDP = new SSODatePicker({
+          triggerEl: dpTrigger,
+          placeholder: 'Data específica',
+          onApply: function(start, end) {
+            state.dateStart = start;
+            state.dateEnd   = end || start;
+            const warn = document.getElementById('dp-hist-warning');
+            if (warn) warn.classList.toggle('visible', !!(start && start < '2026-07-01' && (!end || end < '2026-07-01')));
+            applyFilters();
+            updateChips();
+          },
+        });
+      }
+    } catch(e) {
+      console.warn('[SSO] DatePicker init falhou:', e);
+    }
 
     filtered = ALL;
     renderAll();

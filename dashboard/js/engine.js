@@ -28,15 +28,16 @@ const Engine = (() => {
 
   function filter(records, f) {
     return records.filter(r => {
-      if (f.months?.length && !f.months.includes(r.mes_numero)) return false;
-      if (f.status  && normStatus(r.status)  !== normStatus(f.status))  return false;
-      if (f.vendedor && r.vendedor !== f.vendedor) return false;
-      if (f.fonte   && r.fonte_lead   !== f.fonte)   return false;
-      if (f.tipo    && r.tipo_contrato !== f.tipo)    return false;
+      if (f.months?.length  && !f.months.includes(r.mes_numero))          return false;
+      if (f.vendedor?.length && !f.vendedor.includes(r.vendedor))          return false;
+      if (f.fonte?.length    && !f.fonte.includes(r.fonte_lead))           return false;
+      if (f.status?.length   && !f.status.includes(normStatus(r.status)))  return false;
+      if (f.tipo?.length     && !f.tipo.includes(r.tipo_contrato))         return false;
       if (!_dateInRange(r, f)) return false;
       return true;
     });
   }
+
 
   // Filtro sem status (página Qualidade de Vendas)
   function filterQualidade(records, f) {
