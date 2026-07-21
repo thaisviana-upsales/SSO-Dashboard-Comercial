@@ -1,0 +1,105 @@
+[
+  {
+    "aba": "Fevereiro26",
+    "linha": 60,
+    "tipo": "VALOR_INVALIDO",
+    "campo": "valor_total",
+    "valor_raw": "X",
+    "descricao": "Valor 'X' não pôde ser convertido para numérico"
+  },
+  {
+    "aba": "Fevereiro26",
+    "linha": 93,
+    "tipo": "VALOR_INVALIDO",
+    "campo": "valor_total",
+    "valor_raw": "X",
+    "descricao": "Valor 'X' não pôde ser convertido para numérico"
+  },
+  {
+    "aba": "Fevereiro26",
+    "linha": 179,
+    "tipo": "SUBHEADER_IGNORADO",
+    "campo": "-",
+    "descricao": "Linha de sub-cabeçalho repetido ignorada"
+  },
+  {
+    "aba": "Março26",
+    "linha": 85,
+    "tipo": "VALOR_INVALIDO",
+    "campo": "valor_total",
+    "valor_raw": "X",
+    "descricao": "Valor 'X' não pôde ser convertido para numérico"
+  },
+  {
+    "aba": "Março26",
+    "linha": 157,
+    "tipo": "VALOR_INVALIDO",
+    "campo": "valor_total",
+    "valor_raw": "X",
+    "descricao": "Valor 'X' não pôde ser convertido para numérico"
+  },
+  {
+    "aba": "Março26",
+    "linha": 183,
+    "tipo": "VALOR_INVALIDO",
+    "campo": "valor_total",
+    "valor_raw": "X",
+    "descricao": "Valor 'X' não pôde ser convertido para numérico"
+  },
+  {
+    "aba": "Março26",
+    "linha": 184,
+    "tipo": "VALOR_INVALIDO",
+    "campo": "valor_total",
+    "valor_raw": "X",
+    "descricao": "Valor 'X' não pôde ser convertido para numérico"
+  },
+  {
+    "aba": "Abril26",
+    "linha": 20,
+    "tipo": "VALOR_INVALIDO",
+    "campo": "valor_total",
+    "valor_raw": "X",
+    "descricao": "Valor 'X' não pôde ser convertido para numérico"
+  },
+  {
+    "aba": "Abril26",
+    "linha": 26,
+    "tipo": "VALOR_INVALIDO",
+    "campo": "valor_total",
+    "valor_raw": "X",
+    "descricao": "Valor 'X' não pôde ser convertido para numérico"
+  },
+  {
+    "aba": "Abril26",
+    "linha": 41,
+    "tipo": "VALOR_INVALIDO",
+    "campo": "valor_total",
+    "valor_raw": "X",
+    "descricao": "Valor 'X' não pôde ser convertido para numérico"
+  },
+  {
+    "aba": "Abril26",
+    "linha": 164,
+    "tipo": "VALOR_INVALIDO",
+    "campo": "valor_total",
+    "valor_raw": "X",
+    "descricao": "Valor 'X' não pôde ser convertido para numérico"
+  },
+  {
+    "aba": "Junho26",
+    "linha": 231,
+    "tipo": "VALOR_INVALIDO",
+    "campo": "valor_total",
+    "valor_raw": "x",
+    "descricao": "Valor 'x' não pôde ser convertido para numérico"
+  },
+  {
+    "aba": "Julho26",
+    "linha": 66,
+    "tipo": "VALOR_INVALIDO",
+    "campo": "valor_total",
+    "valor_raw": "x",
+    "descricao": "Valor 'x' não pôde ser convertido para numérico"
+  }
+]

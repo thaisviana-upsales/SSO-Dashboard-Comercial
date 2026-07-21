@@ -1,0 +1,101 @@
+======================================================================
+  RELATÓRIO DE QUALIDADE — DASHBOARD COMERCIAL SSO
+  Gerado em: 21/07/2026 09:52:48
+======================================================================
+
+1. RESUMO DA IMPORTAÇÃO
+----------------------------------------------------------------------
+  Total de registros importados :  1,265
+  Problemas registrados         :     13
+  Registros com valor inválido  :     12
+  Contratos fechados s/ valor   :      5
+
+2. CONTAGEM POR ABA (Leads / Oportunidades)
+----------------------------------------------------------------------
+  Janeiro      (Janeiro26   )    96 registros  ✅
+  Fevereiro    (Fevereiro26 )   127 registros  ✅
+  Março        (Março26     )   193 registros  ✅
+  Abril        (Abril26     )   249 registros  ✅
+  Maio         (Maio26      )   265 registros  ✅
+  Junho        (Junho26     )   227 registros  ✅
+  Julho        (Julho26     )   108 registros  ✅
+  TOTAL                      1265 registros  ✅
+
+3. INDICADORES CONSOLIDADOS
+----------------------------------------------------------------------
+  Leads / Oportunidades        :      1,265
+  Propostas Enviadas           :      1,265
+  Qtd. de Vendas               :        635
+  Propostas Abertas            :        387
+  Recusadas                    :        243
+  Outros / Sem status          :          0
+  Conversão de Vendas          :      50.20%
+  Previsão de Faturamento      : R$    5,969,373.38
+  Faturamento Total de Vendas  : R$    1,676,229.28
+
+  TESTES DE ACEITE:
+  ✅  Leads total = 1.265
+  ✅  Propostas Enviadas = 1.265
+  ✅  Qtd. de Vendas = 635
+  ✅  Propostas Abertas = 387
+  ✅  Recusadas = 243
+  ✅  Conversão ≈ 50,20%
+  ✅  Previsão = R$ 5.969.373,38
+  ✅  Fat. Vendas = R$ 1.676.229,28
+  ✅  12 registros s/ valor válido (X/x)
+  ✅  5 contratos fechados s/ valor
+
+  🎉 TODOS OS TESTES DE ACEITE PASSARAM.
+
+4. DETALHAMENTO DOS PROBLEMAS DE QUALIDADE
+----------------------------------------------------------------------
+
+  [SUBHEADER_IGNORADO] — 1 ocorrência(s)
+    • Fevereiro26 linha  179  | valor_raw: ''                        | Linha de sub-cabeçalho repetido ignorada
+
+  [VALOR_INVALIDO] — 12 ocorrência(s)
+    • Fevereiro26 linha   60  | valor_raw: 'X'                       | Valor 'X' não pôde ser convertido para numérico
+    • Fevereiro26 linha   93  | valor_raw: 'X'                       | Valor 'X' não pôde ser convertido para numérico
+    • Março26 linha   85  | valor_raw: 'X'                       | Valor 'X' não pôde ser convertido para numérico
+    • Março26 linha  157  | valor_raw: 'X'                       | Valor 'X' não pôde ser convertido para numérico
+    • Março26 linha  183  | valor_raw: 'X'                       | Valor 'X' não pôde ser convertido para numérico
+    • Março26 linha  184  | valor_raw: 'X'                       | Valor 'X' não pôde ser convertido para numérico
+    • Abril26 linha   20  | valor_raw: 'X'                       | Valor 'X' não pôde ser convertido para numérico
+    • Abril26 linha   26  | valor_raw: 'X'                       | Valor 'X' não pôde ser convertido para numérico
+    • Abril26 linha   41  | valor_raw: 'X'                       | Valor 'X' não pôde ser convertido para numérico
+    • Abril26 linha  164  | valor_raw: 'X'                       | Valor 'X' não pôde ser convertido para numérico
+    • Junho26 linha  231  | valor_raw: 'x'                       | Valor 'x' não pôde ser convertido para numérico
+    • Julho26 linha   66  | valor_raw: 'x'                       | Valor 'x' não pôde ser convertido para numérico
+
+5. CONFIRMAÇÃO DE PRIVACIDADE (PII)
+----------------------------------------------------------------------
+  Colunas NÃO importadas para a camada analítica:
+    ✅  EMPRESA
+    ✅  CNPJ
+    ✅  NOME
+    ✅  TELEFONE
+    ✅  E-MAIL
+    ✅  QUANTIDADE DE FUNCIONÁRIOS
+    ✅  DATA ENVIO DE ORÇAMENTO
+    ✅  DATA DE FECHAMENTO DA VENDA
+    ✅  VALOR MENSAL
+    ✅  PARCELAS
+    ✅  TIPO DE CONTRATO (segunda ocorrência)
+    ✅  SITUAÇÃO DO CONTRATO
+    ✅  NÚMERO DA O.S.
+    ✅  OBSERVAÇÃO DO VENDEDOR
+
+  ✅  NENHUM DADO PESSOAL (PII) foi incluído na base analítica.
+
+6. NOTA ESTRUTURAL — ABA Janeiro26
+----------------------------------------------------------------------
+  A aba Janeiro26 não possui coluna PARCELAS explícita.
+  Conforme instrução do usuário, o equivalente seria:
+  PARCELAS = VALOR_TOTAL / VALOR_MENSAL (derivado).
+  Como PARCELAS não integra a camada analítica, essa
+  derivação não foi aplicada — a informação é apenas
+  documentada aqui para rastreabilidade.
+
+======================================================================
+  FIM DO RELATÓRIO
+======================================================================
