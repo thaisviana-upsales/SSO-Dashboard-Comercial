@@ -12,10 +12,12 @@
   };
 
   let filtered = [];
-  const ALL = SSO_DATA;
+  // ALL: histórico estático jan-jun (data.js) + live jul+ (Supabase).
+  // Mutável para recarregarDados() poder atualizar in-place.
+  const ALL = [...SSO_DATA];  // 1.157 registros EXCEL_HISTORICO jan-jun
   const $ = id => document.getElementById(id);
   const { fmtBRL, fmtPct, fmtNum, fmtBRLShort, MES_NOME, MES_NOME_FULL, ALL_MONTHS,
-          CURVAS_ORDEM, CURVAS_FAIXAS, CURVAS_CORES } = Engine;
+    CURVAS_ORDEM, CURVAS_FAIXAS, CURVAS_CORES } = Engine;
 
   const CURVA_CSS = {
     'A+': 'aplus', 'A': 'a', 'B': 'b', 'C': 'c', 'D': 'd', 'Sem classificação': 'sem'
@@ -40,16 +42,16 @@
   function renderCockpit(curvaData) {
     const totProp = curvaData.reduce((s, d) => s + d.propostas, 0);
     const totVend = curvaData.reduce((s, d) => s + d.vendas, 0);
-    const totFat  = curvaData.reduce((s, d) => s + d.fatVendas, 0);
-    const totVCV  = curvaData.reduce((s, d) => s + (d.vendasSemValor !== undefined ? d.vendas - d.vendasSemValor : 0), 0);
-    const conv    = totProp > 0 ? totVend / totProp * 100 : 0;
-    const ticket  = totVCV  > 0 ? totFat  / totVCV  : null;
+    const totFat = curvaData.reduce((s, d) => s + d.fatVendas, 0);
+    const totVCV = curvaData.reduce((s, d) => s + (d.vendasSemValor !== undefined ? d.vendas - d.vendasSemValor : 0), 0);
+    const conv = totProp > 0 ? totVend / totProp * 100 : 0;
+    const ticket = totVCV > 0 ? totFat / totVCV : null;
 
-    $('v-propostas').textContent  = fmtNum(totProp);
-    $('v-vendas').textContent     = fmtNum(totVend);
-    $('v-conversao').textContent  = fmtPct(conv);
+    $('v-propostas').textContent = fmtNum(totProp);
+    $('v-vendas').textContent = fmtNum(totVend);
+    $('v-conversao').textContent = fmtPct(conv);
     $('v-faturamento').textContent = fmtBRLShort(totFat);
-    $('v-ticket').textContent     = ticket ? fmtBRLShort(ticket) : '—';
+    $('v-ticket').textContent = ticket ? fmtBRLShort(ticket) : '—';
 
     // Maior conversão (propostas > 0)
     const comProp = curvaData.filter(d => d.propostas > 0);
@@ -141,13 +143,15 @@
         labels: curvaData.map(d => d.curva),
         datasets: [
           { label: 'Propostas', data: curvaData.map(d => d.propostas), backgroundColor: 'rgba(133,32,12,.18)', borderColor: '#85200C', borderWidth: 1.5, borderRadius: 4 },
-          { label: 'Vendas',    data: curvaData.map(d => d.vendas),    backgroundColor: curvaData.map(d => d.cor + 'CC'), borderColor: curvaData.map(d => d.cor), borderWidth: 1, borderRadius: 4 },
+          { label: 'Vendas', data: curvaData.map(d => d.vendas), backgroundColor: curvaData.map(d => d.cor + 'CC'), borderColor: curvaData.map(d => d.cor), borderWidth: 1, borderRadius: 4 },
         ],
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { labels: { font: BASE_FONT, usePointStyle: true, padding: 14, color: '#475467' } },
-          tooltip: { mode: 'index', intersect: false } },
+        plugins: {
+          legend: { labels: { font: BASE_FONT, usePointStyle: true, padding: 14, color: '#475467' } },
+          tooltip: { mode: 'index', intersect: false }
+        },
         scales: {
           x: { grid: { color: 'rgba(0,0,0,.04)' }, ticks: { font: BASE_FONT, color: '#667085' }, border: { display: false } },
           y: { grid: BASE_GRID, beginAtZero: true, ticks: { font: BASE_FONT, color: '#667085', padding: 6 }, border: { display: false } },
@@ -180,8 +184,10 @@
       },
       options: {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { labels: { font: BASE_FONT, usePointStyle: true, padding: 14, color: '#475467' } },
-          tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${typeof c.parsed.x === 'number' ? c.parsed.x.toFixed(2).replace('.', ',') + '%' : ''}` } } },
+        plugins: {
+          legend: { labels: { font: BASE_FONT, usePointStyle: true, padding: 14, color: '#475467' } },
+          tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${typeof c.parsed.x === 'number' ? c.parsed.x.toFixed(2).replace('.', ',') + '%' : ''}` } }
+        },
         scales: {
           x: { grid: BASE_GRID, beginAtZero: true, ticks: { font: BASE_FONT, color: '#667085', callback: v => v.toFixed(0) + '%' }, border: { display: false } },
           y: { grid: { color: 'rgba(0,0,0,.04)' }, ticks: { font: BASE_FONT, color: '#475467' }, border: { display: false } },
@@ -205,11 +211,13 @@
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { labels: { font: BASE_FONT, usePointStyle: true, padding: 14, color: '#475467' } },
-          tooltip: { mode: 'index', intersect: false, callbacks: { label: c => c.datasetIndex === 0 ? ` Faturamento: ${fmtBRL(c.parsed.y)}` : ` Ticket Médio: ${fmtBRL(c.parsed.y)}` } } },
+        plugins: {
+          legend: { labels: { font: BASE_FONT, usePointStyle: true, padding: 14, color: '#475467' } },
+          tooltip: { mode: 'index', intersect: false, callbacks: { label: c => c.datasetIndex === 0 ? ` Faturamento: ${fmtBRL(c.parsed.y)}` : ` Ticket Médio: ${fmtBRL(c.parsed.y)}` } }
+        },
         scales: {
           x: { grid: { color: 'rgba(0,0,0,.04)' }, ticks: { font: BASE_FONT, color: '#667085' }, border: { display: false } },
-          y:  { position: 'left',  grid: BASE_GRID, beginAtZero: true, ticks: { font: BASE_FONT, color: '#667085', callback: v => fmtBRLShort(v) }, border: { display: false } },
+          y: { position: 'left', grid: BASE_GRID, beginAtZero: true, ticks: { font: BASE_FONT, color: '#667085', callback: v => fmtBRLShort(v) }, border: { display: false } },
           y2: { position: 'right', grid: { display: false }, beginAtZero: true, ticks: { font: BASE_FONT, color: '#667085', callback: v => fmtBRLShort(v) }, border: { display: false } },
         },
       },
@@ -236,13 +244,15 @@
         responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { labels: { font: BASE_FONT, usePointStyle: true, pointStyleWidth: 10, padding: 12, color: '#475467' } },
-          tooltip: { callbacks: {
-            label: c => {
-              const d = curvaData.find(x => x.curva === c.dataset.label);
-              if (!d) return '';
-              return [`  ${d.curva} (${d.faixa})`, `  Conversão: ${fmtPct(d.conversao)}`, `  Ticket Médio: ${d.ticketMedio ? fmtBRL(d.ticketMedio) : '—'}`, `  Faturamento: ${fmtBRL(d.fatVendas)}`];
-            },
-          }},
+          tooltip: {
+            callbacks: {
+              label: c => {
+                const d = curvaData.find(x => x.curva === c.dataset.label);
+                if (!d) return '';
+                return [`  ${d.curva} (${d.faixa})`, `  Conversão: ${fmtPct(d.conversao)}`, `  Ticket Médio: ${d.ticketMedio ? fmtBRL(d.ticketMedio) : '—'}`, `  Faturamento: ${fmtBRL(d.fatVendas)}`];
+              },
+            }
+          },
         },
         scales: {
           x: { title: { display: true, text: 'Conversão (%)', font: BASE_FONT, color: '#667085' }, grid: { color: 'rgba(0,0,0,.04)' }, ticks: { font: BASE_FONT, color: '#667085', callback: v => v + '%' }, border: { display: false } },
@@ -262,7 +272,7 @@
       return asc ? va - vb : vb - va;
     });
 
-    ['curva','faixa','propostas','vendas','conversao','prevFat','fatVendas','ticketMedio','participacaoVendas','participacaoFat','vendasSemValor'].forEach(c => {
+    ['curva', 'faixa', 'propostas', 'vendas', 'conversao', 'prevFat', 'fatVendas', 'ticketMedio', 'participacaoVendas', 'participacaoFat', 'vendasSemValor'].forEach(c => {
       const el = $('sa-' + c);
       if (el) el.textContent = c === col ? (asc ? ' ▲' : ' ▼') : ' ·';
       const th = document.querySelector(`th[data-col="${c}"]`);
@@ -308,7 +318,7 @@
   function renderAll() {
     const curvaData = Engine.byCurva(filtered);
     const convGeral = curvaData.reduce((s, d) => s + d.vendas, 0) /
-                      Math.max(curvaData.reduce((s, d) => s + d.propostas, 0), 1) * 100;
+      Math.max(curvaData.reduce((s, d) => s + d.propostas, 0), 1) * 100;
     renderCockpit(curvaData);
     renderCurvaCards(curvaData);
     renderChartPropVend(curvaData);
@@ -414,7 +424,7 @@
     $('btn-clear')?.addEventListener('click', () => {
       state.months = []; state.vendedor = ''; state.fonte = ''; state.tipo = ''; state.curva = '';
       state.dateStart = null; state.dateEnd = null;
-      ['sel-vendedor','sel-fonte','sel-tipo','sel-curva'].forEach(id => { if ($(id)) $(id).value = ''; });
+      ['sel-vendedor', 'sel-fonte', 'sel-tipo', 'sel-curva'].forEach(id => { if ($(id)) $(id).value = ''; });
       document.getElementById('dp-hist-warning')?.classList.remove('visible');
       syncPills(); applyFilters(); updateChips();
     });
@@ -434,7 +444,7 @@
     // Filtro por data (DatePicker)
     document.addEventListener('qual-date-change', e => {
       state.dateStart = e.detail.start;
-      state.dateEnd   = e.detail.end;
+      state.dateEnd = e.detail.end;
       applyFilters(); updateChips();
     });
   }
@@ -448,6 +458,30 @@
     if (window.Correlacoes) Correlacoes.init();
     renderAll();
     updateChips();
+
+    // Carga live em segundo plano — busca GOOGLE_SHEETS_LIVE do Supabase sem
+    // bloquear a UI. O histórico jan-jun (1.157 registros) é preservado intacto.
+    if (typeof SSO_SUPABASE !== 'undefined') {
+      SSO_SUPABASE.recarregarDados(ALL)
+        .then(resultado => {
+          const nowStr = new Date().toLocaleString('pt-BR');
+          if ($('last-update')) {
+            $('last-update').textContent =
+              'Atualizado: ' + nowStr +
+              ' · Histórico: ' + resultado.historico +
+              ' · Live jul+: ' + resultado.live;
+          }
+          applyFilters();
+          if (window.Correlacoes) Correlacoes.update(filtered);
+        })
+        .catch(err => {
+          console.warn('[SSO Qualidade] Carga live falhou — exibindo somente históricos:', err);
+          if ($('last-update'))
+            $('last-update').textContent = 'Dados de: ' + SSO_EXPORTED_AT + ' (offline)';
+        });
+    } else {
+      console.warn('[SSO Qualidade] SSO_SUPABASE não definido — supabase-client.js não carregado');
+    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
@@ -458,11 +492,11 @@
    MÓDULO DE CORRELAÇÕES AVANÇADAS
    Injetado no escopo global para ser chamado pela IIFE principal.
    ════════════════════════════════════════════════════════════════════ */
-(function() {
+(function () {
   const $ = id => document.getElementById(id);
   const { fmtBRL, fmtBRLShort, fmtPct, fmtNum, CURVAS_ORDEM, CURVAS_CORES } = Engine;
 
-  const CURVA_CSS = { 'A+':'aplus','A':'a','B':'b','C':'c','D':'d','Sem classificação':'sem' };
+  const CURVA_CSS = { 'A+': 'aplus', 'A': 'a', 'B': 'b', 'C': 'c', 'D': 'd', 'Sem classificação': 'sem' };
 
   /* Estado local das 3 correlações */
   const corrState = { vendMetric: 'propostas', fonteMetric: 'propostas', tipoMetric: 'vendas' };
@@ -515,13 +549,13 @@
       `<tr>
         <td class="heat-row-label" title="${escH(row.row)}">${escH(row.row)}</td>
         ${curvas.map(cv => {
-          const v = row.cells[cv][metric];
-          const bg = heatBg(v, colMax[cv], metric);
-          const fg = heatFg(v, colMax[cv]);
-          return `<td class="heat-cell" style="background:${bg};color:${fg}"
+        const v = row.cells[cv][metric];
+        const bg = heatBg(v, colMax[cv], metric);
+        const fg = heatFg(v, colMax[cv]);
+        return `<td class="heat-cell" style="background:${bg};color:${fg}"
             data-row="${escH(row.row)}" data-curva="${cv}"
             title="${escH(row.row)} × ${cv}: ${fmtCell(v, metric)}">${fmtCell(v, metric)}</td>`;
-        }).join('')}
+      }).join('')}
         <td class="heat-total-cell">${fmtCell(row.totals[totalLabel] || row.totals.propostas, metric)}</td>
       </tr>`
     ).join('');
@@ -542,7 +576,7 @@
     const ct = Engine.crossTabMetric(_corrFiltered, 'vendedor');
     const container = $('matrix-vend-curva');
     if (!container) return;
-    container.innerHTML = buildHeatTable(ct, corrState.vendMetric, 'Vendedor', 'vendedor', (row, cv) => {});
+    container.innerHTML = buildHeatTable(ct, corrState.vendMetric, 'Vendedor', 'vendedor', (row, cv) => { });
 
     container.querySelectorAll('.heat-cell').forEach(cell => {
       cell.addEventListener('click', () => {
@@ -565,7 +599,7 @@
 
     const metric = corrState.fonteMetric;
     const BASE_FONT = { family: "'Inter',system-ui,sans-serif", size: 11 };
-    const curvas = ['A+','A','B','C','D','Sem classificação'];
+    const curvas = ['A+', 'A', 'B', 'C', 'D', 'Sem classificação'];
 
     const isStacked = metric !== 'conversao';
     const datasets = curvas.map(cv => ({
@@ -593,8 +627,10 @@
           },
         },
         scales: {
-          x: { stacked: isStacked, grid: { color: 'rgba(0,0,0,.04)' }, beginAtZero: true,
-               ticks: { font: BASE_FONT, color: '#667085', callback: v => metric === 'conversao' ? v + '%' : metric === 'fatVendas' ? fmtBRLShort(v) : v }, border: { display: false } },
+          x: {
+            stacked: isStacked, grid: { color: 'rgba(0,0,0,.04)' }, beginAtZero: true,
+            ticks: { font: BASE_FONT, color: '#667085', callback: v => metric === 'conversao' ? v + '%' : metric === 'fatVendas' ? fmtBRLShort(v) : v }, border: { display: false }
+          },
           y: { stacked: isStacked, ticks: { font: BASE_FONT, color: '#475467' }, border: { display: false }, grid: { display: false } },
         },
       },
@@ -610,7 +646,7 @@
     const topRows = { rows: ct.rows.slice(0, top), curvas: ct.curvas };
     const container = $('matrix-tipo-curva');
     if (!container) return;
-    container.innerHTML = buildHeatTable(topRows, corrState.tipoMetric, 'Tipo de Contrato', 'tipo_contrato', () => {});
+    container.innerHTML = buildHeatTable(topRows, corrState.tipoMetric, 'Tipo de Contrato', 'tipo_contrato', () => { });
 
     container.querySelectorAll('.heat-cell').forEach(cell => {
       cell.addEventListener('click', () => {
@@ -624,7 +660,7 @@
   /* ── Drawer Tipo de Contrato (ranking completo) ───────────────────── */
   function openTipoDrawer() {
     const overlay = $('tipo-drawer-overlay');
-    const drawer  = $('tipo-drawer');
+    const drawer = $('tipo-drawer');
     if (!overlay || !drawer) return;
     overlay.classList.add('active'); drawer.classList.add('active');
     renderTipoDrawerBody('');
@@ -659,13 +695,13 @@
         <th class="heat-col-header">Total</th>
       </tr></thead>
       <tbody>${rows.map((row, i) => `<tr>
-        <td class="heat-row-label" title="${escH(row.row)}" style="font-size:10px"><span style="color:var(--gray-300);font-size:9px;margin-right:6px">${i+1}</span>${escH(row.row)}</td>
+        <td class="heat-row-label" title="${escH(row.row)}" style="font-size:10px"><span style="color:var(--gray-300);font-size:9px;margin-right:6px">${i + 1}</span>${escH(row.row)}</td>
         ${curvas.map(cv => {
-          const v = row.cells[cv][metric];
-          const bg = heatBg(v, colMax[cv], metric);
-          const fg = heatFg(v, colMax[cv]);
-          return `<td class="heat-cell" style="background:${bg};color:${fg};font-size:10px">${fmtCell(v, metric)}</td>`;
-        }).join('')}
+      const v = row.cells[cv][metric];
+      const bg = heatBg(v, colMax[cv], metric);
+      const fg = heatFg(v, colMax[cv]);
+      return `<td class="heat-cell" style="background:${bg};color:${fg};font-size:10px">${fmtCell(v, metric)}</td>`;
+    }).join('')}
         <td class="heat-total-cell" style="font-size:10px">${fmtCell(row.totals[metric === 'conversao' ? 'conversao' : metric === 'ticketMedio' ? 'fatVendas' : metric] || row.totals.propostas, metric)}</td>
       </tr>`).join('')}</tbody>
     </table>
@@ -720,6 +756,7 @@
       document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTipoDrawer(); });
 
       // Sincronização Live — Botão ATUALIZAR PAINEL
+      // Sincroniza somente GOOGLE_SHEETS_LIVE (jul+). Histórico jan-jun preservado.
       const btnSync = $('btn-sync-now');
       const btnSyncText = $('btn-sync-text');
       if (btnSync) {
@@ -729,35 +766,32 @@
           if (btnSyncText) btnSyncText.textContent = 'Atualizando...';
 
           try {
-            const syncResp = await fetch('https://wutmhhqbdwslwiawqwut.supabase.co/functions/v1/sync-sheets', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ trigger: 'manual_button_click' })
+            const syncResData = await SSO_SUPABASE.dispararSync().catch(e => {
+              console.warn('[SSO Qualidade] Sync falhou:', e);
+              return {};
             });
-            const syncResData = await syncResp.json().catch(() => ({}));
 
-            const dataResp = await fetch('https://wutmhhqbdwslwiawqwut.supabase.co/rest/v1/view_dashboard_consolidado?select=*', {
-              headers: { 'Accept': 'application/json' }
-            });
-            if (dataResp.ok) {
-              const freshRecords = await dataResp.json();
-              if (Array.isArray(freshRecords) && freshRecords.length > 0) {
-                ALL.length = 0;
-                ALL.push(...freshRecords);
-              }
-            }
+            const resultado = await SSO_SUPABASE.recarregarDados(ALL);
 
-            const s = syncResData.summary || { inserted: 0, updated: 0, skipped: 0 };
+            const s = syncResData.summary || {};
             const nowStr = new Date().toLocaleString('pt-BR');
-            if ($('last-update')) $('last-update').textContent = 'Última sincronização: ' + nowStr;
-            alert(`Sincronização concluída com sucesso!\n\nInseridos: ${s.inserted || 0}\nAtualizados: ${s.updated || 0}\nInalterados: ${s.skipped || 0}`);
+            if ($('last-update')) $('last-update').textContent = 'Atualizado: ' + nowStr;
+            alert(
+              `Sincronização concluída!\n\n` +
+              `Inseridos: ${s.inserted || 0}\n` +
+              `Atualizados: ${s.updated || 0}\n` +
+              `Inalterados: ${s.skipped || 0}\n\n` +
+              `Histórico jan-jun: ${resultado.historico} registros\n` +
+              `Live jul+: ${resultado.live} registros`
+            );
           } catch (err) {
             console.error('[SSO Qualidade] Erro na sincronização:', err);
-            alert('Aviso: Não foi possível sincronizar com o servidor remoto. Mantendo os dados atuais.');
+            alert('Aviso: Não foi possível sincronizar. Dados históricos mantidos.');
           } finally {
             btnSync.disabled = false;
             if (btnSyncText) btnSyncText.textContent = 'ATUALIZAR PAINEL';
             applyFilters();
+            if (window.Correlacoes) Correlacoes.update(filtered);
           }
         });
       }
@@ -769,7 +803,7 @@
         if (curva !== undefined) document.querySelector('#sel-curva').value = curva || '';
         if (tipo !== undefined) document.querySelector('#sel-tipo').value = tipo || '';
         // Trigger change events para o app principal processar
-        ['sel-vendedor','sel-curva','sel-tipo'].forEach(id => {
+        ['sel-vendedor', 'sel-curva', 'sel-tipo'].forEach(id => {
           const el = document.getElementById(id);
           if (el) el.dispatchEvent(new Event('change'));
         });
@@ -779,7 +813,7 @@
 })();
 
 /* ── DatePicker — Qualidade de Vendas ───────────────────────────────── */
-(function() {
+(function () {
   const JULIO_2026 = '2026-07-01';
 
   function isPreJuly(start, end) {
@@ -798,20 +832,20 @@
 
   window._qualDateState = { dateStart: null, dateEnd: null };
 
-  document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('DOMContentLoaded', function () {
     const trigger = document.getElementById('dp-trigger-qual');
     if (!trigger || typeof SSODatePicker === 'undefined') return;
 
     const dp = new SSODatePicker({
       triggerEl: trigger,
       placeholder: 'Data específica',
-      onApply: function(start, end) {
+      onApply: function (start, end) {
         window._qualDateState.dateStart = start;
         window._qualDateState.dateEnd = end;
         showHist(start && isPreJuly(start, end));
         document.dispatchEvent(new CustomEvent('qual-date-change', { detail: { start, end } }));
       },
-      onClear: function() {
+      onClear: function () {
         window._qualDateState.dateStart = null;
         window._qualDateState.dateEnd = null;
         showHist(false);
@@ -820,7 +854,7 @@
     });
 
     // Limpar também pelo botão principal
-    document.getElementById('btn-clear')?.addEventListener('click', function() {
+    document.getElementById('btn-clear')?.addEventListener('click', function () {
       dp.clear();
       window._qualDateState.dateStart = null;
       window._qualDateState.dateEnd = null;
@@ -828,7 +862,7 @@
     });
 
     // O módulo qualidade.js (IIFE principal) escuta este evento e aplica o filtro
-    document.addEventListener('qual-date-change', function(e) {
+    document.addEventListener('qual-date-change', function (e) {
       // Já coberto pelo wiring abaixo no state
     });
   });

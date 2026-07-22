@@ -17,7 +17,9 @@
   };
 
   let filtered = [];
-  const ALL = SSO_DATA;  // dados completos da Etapa 1
+  // ALL: histórico estático jan-jun (data.js) + live jul+ (Supabase).
+  // Mantido como array mutável para recarregarDados() atualizar in-place.
+  const ALL = [...SSO_DATA];  // 1.157 registros EXCEL_HISTORICO jan-jun
 
   // ── Utils ─────────────────────────────────────────────────────────────
   const $ = id => document.getElementById(id);
@@ -29,13 +31,13 @@
   // ── Aplicar filtros ───────────────────────────────────────────────────
   function applyFilters() {
     filtered = Engine.filter(ALL, {
-      months:    state.months,
-      vendedor:  state.vendedor ? [state.vendedor] : [],
-      fonte:     state.fonte    ? [state.fonte]    : [],
-      status:    state.status   ? [state.status]   : [],
-      tipo:      state.tipo     ? [state.tipo]     : [],
+      months: state.months,
+      vendedor: state.vendedor ? [state.vendedor] : [],
+      fonte: state.fonte ? [state.fonte] : [],
+      status: state.status ? [state.status] : [],
+      tipo: state.tipo ? [state.tipo] : [],
       dateStart: state.dateStart,
-      dateEnd:   state.dateEnd,
+      dateEnd: state.dateEnd,
     });
     renderAll();
   }
@@ -354,6 +356,8 @@
     $('btn-export-pdf').addEventListener('click', () => window.print());
 
     // Sincronização Live — Botão ATUALIZAR PAINEL
+    // Sincroniza somente dados GOOGLE_SHEETS_LIVE (jul+). O histórico jan-jun
+    // permanece intacto em ALL, vindo do data.js estático.
     const btnSync = $('btn-sync-now');
     const btnSyncText = $('btn-sync-text');
     if (btnSync) {
@@ -363,31 +367,29 @@
         if (btnSyncText) btnSyncText.textContent = 'Atualizando...';
 
         try {
-          const syncResp = await fetch('https://wutmhhqbdwslwiawqwut.supabase.co/functions/v1/sync-sheets', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ trigger: 'manual_button_click' })
-          });
-          const syncResData = await syncResp.json().catch(() => ({}));
+          if (typeof SSO_SUPABASE === 'undefined') throw new Error('Módulo Supabase não carregado');
 
-          const dataResp = await fetch('https://wutmhhqbdwslwiawqwut.supabase.co/rest/v1/view_dashboard_consolidado?select=*', {
-            headers: { 'Accept': 'application/json' }
+          const syncResData = await SSO_SUPABASE.dispararSync().catch(e => {
+            console.warn('[SSO] Sync Edge Function falhou (dados mantidos):', e);
+            return {};
           });
-          if (dataResp.ok) {
-            const freshRecords = await dataResp.json();
-            if (Array.isArray(freshRecords) && freshRecords.length > 0) {
-              ALL.length = 0;
-              ALL.push(...freshRecords);
-            }
-          }
 
-          const s = syncResData.summary || { inserted: 0, updated: 0, skipped: 0 };
+          const resultado = await SSO_SUPABASE.recarregarDados(ALL);
+
+          const s = syncResData.summary || {};
           const nowStr = new Date().toLocaleString('pt-BR');
-          if ($('last-update')) $('last-update').textContent = 'Última sincronização: ' + nowStr;
-          alert(`Sincronização concluída com sucesso!\n\nInseridos: ${s.inserted || 0}\nAtualizados: ${s.updated || 0}\nInalterados: ${s.skipped || 0}`);
+          if ($('last-update')) $('last-update').textContent = 'Atualizado: ' + nowStr;
+          alert(
+            `Sincronização concluída!\n\n` +
+            `Inseridos: ${s.inserted || 0}\n` +
+            `Atualizados: ${s.updated || 0}\n` +
+            `Inalterados: ${s.skipped || 0}\n\n` +
+            `Histórico jan-jun: ${resultado.historico} registros\n` +
+            `Live jul+: ${resultado.live} registros`
+          );
         } catch (err) {
           console.error('[SSO] Erro na sincronização:', err);
-          alert('Aviso: Não foi possível sincronizar com o servidor remoto. Mantendo os dados atuais.');
+          alert('Aviso: Não foi possível sincronizar. Dados históricos mantidos.');
         } finally {
           btnSync.disabled = false;
           if (btnSyncText) btnSyncText.textContent = 'ATUALIZAR PAINEL';
@@ -413,9 +415,9 @@
         window._mainDP = new SSODatePicker({
           triggerEl: dpTrigger,
           placeholder: 'Data específica',
-          onApply: function(start, end) {
+          onApply: function (start, end) {
             state.dateStart = start;
-            state.dateEnd   = end || start;
+            state.dateEnd = end || start;
             const warn = document.getElementById('dp-hist-warning');
             if (warn) warn.classList.toggle('visible', !!(start && start < '2026-07-01' && (!end || end < '2026-07-01')));
             applyFilters();
@@ -423,13 +425,36 @@
           },
         });
       }
-    } catch(e) {
+    } catch (e) {
       console.warn('[SSO] DatePicker init falhou:', e);
     }
 
     filtered = ALL;
     renderAll();
     updateChips();
+
+    // Carga live em segundo plano — busca GOOGLE_SHEETS_LIVE do Supabase sem
+    // bloquear a UI. O histórico jan-jun (1.157 registros) é preservado intacto.
+    if (typeof SSO_SUPABASE !== 'undefined') {
+      SSO_SUPABASE.recarregarDados(ALL)
+        .then(resultado => {
+          const nowStr = new Date().toLocaleString('pt-BR');
+          if ($('last-update')) {
+            $('last-update').textContent =
+              'Atualizado: ' + nowStr +
+              ' · Histórico: ' + resultado.historico +
+              ' · Live jul+: ' + resultado.live;
+          }
+          applyFilters();
+        })
+        .catch(err => {
+          console.warn('[SSO] Carga live falhou — exibindo somente dados históricos:', err);
+          if ($('last-update'))
+            $('last-update').textContent = 'Dados de: ' + SSO_EXPORTED_AT + ' (offline)';
+        });
+    } else {
+      console.warn('[SSO] SSO_SUPABASE não definido — supabase-client.js não carregado');
+    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
