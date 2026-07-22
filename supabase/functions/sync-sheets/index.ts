@@ -2,6 +2,12 @@
 // SUPABASE EDGE FUNCTION: sync-sheets
 // Endpoint: POST /functions/v1/sync-sheets
 // Recebe os dados sanitizados do Google Apps Script e realiza o UPSERT no Supabase
+// Schema real em produção:
+//   sync_runs:           id, spreadsheet_id, status, rows_read, rows_inserted,
+//                        rows_updated, rows_rejected, error_message,
+//                        started_at, finished_at
+//   data_quality_issues: id, sync_run_id, source_sheet, source_row, issue_code,
+//                        severity, message, raw_value, resolved, created_at
 // ============================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -10,14 +16,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "https://wutmhhqbdwslwiawqwut.supabase.co";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-      },
-    });
+    return new Response("ok", { headers: CORS_HEADERS });
   }
 
   try {
@@ -25,16 +31,17 @@ serve(async (req) => {
     const body = await req.json();
 
     const spreadsheetId = body.spreadsheet_id || "1UH4LP1f4jPpxizwo5HzCZM8PHKdOCSo2tbs2kwD12DE";
-    const rows = body.rows || [];
+    const rows: Record<string, unknown>[] = body.rows || [];
 
-    // Registrar início da sincronização em sync_runs
+    // 1. Registrar início da sincronização em sync_runs
+    //    Schema real: id (PK), spreadsheet_id, status, rows_read, started_at
     const { data: syncRun, error: syncError } = await supabase
       .from("sync_runs")
       .insert({
         spreadsheet_id: spreadsheetId,
         status: "RUNNING",
-        total_rows_read: rows.length,
-        started_at: new Date().toISOString()
+        rows_read: rows.length,
+        started_at: new Date().toISOString(),
       })
       .select()
       .single();
@@ -43,28 +50,32 @@ serve(async (req) => {
       throw new Error(`Falha ao registrar sync_run: ${syncError.message}`);
     }
 
-    const syncId = syncRun.id_sync;
+    const syncRunId: string = syncRun.id;
     let inserted = 0;
     let updated = 0;
     let skipped = 0;
     let ignored = 0;
 
     for (const r of rows) {
-      // 1. Regra de corte obrigatoria
-      if (!r.data_referencia || r.data_referencia < "2026-07-01") {
+      const dataRef = r.data_referencia as string | null;
+
+      // 2. Regra de corte obrigatória: somente registros >= 01/07/2026
+      if (!dataRef || dataRef < "2026-07-01") {
         ignored++;
         await supabase.from("data_quality_issues").insert({
-          id_sync: syncId,
-          spreadsheet_id: spreadsheetId,
-          sheet_name: r.source_sheet,
-          issue_type: "CORTE_DATA_IGNORADO",
-          raw_data: r,
-          description: `Registro ignorado: data_referencia '${r.data_referencia}' < 2026-07-01`
+          sync_run_id: syncRunId,
+          source_sheet: r.source_sheet,
+          source_row: r.row_index ?? null,
+          issue_code: "CORTE_DATA_IGNORADO",
+          severity: "INFO",
+          message: `Registro ignorado: data_referencia '${dataRef}' < 2026-07-01`,
+          raw_value: JSON.stringify(r),
+          resolved: false,
         });
         continue;
       }
 
-      // 2. Verificar se o registro ja existe pelo ID de origem
+      // 3. Verificar se o registro já existe pelo ID de origem
       const { data: existing } = await supabase
         .from("registros_comerciais")
         .select("id_registro, row_hash")
@@ -75,8 +86,8 @@ serve(async (req) => {
 
       if (existing) {
         if (existing.row_hash === r.row_hash) {
-          skipped++;
-          continue; // Sem alteracao -> ignora update
+          skipped++; // Sem alteração → ignora update
+          continue;
         }
 
         // Atualizar registro existente
@@ -98,12 +109,21 @@ serve(async (req) => {
             numero_os: r.numero_os,
             row_hash: r.row_hash,
             updated_at: new Date().toISOString(),
-            synced_at: new Date().toISOString()
+            synced_at: new Date().toISOString(),
           })
           .eq("id_registro", existing.id_registro);
 
         if (updateErr) {
           console.error("Erro ao atualizar registro:", updateErr);
+          await supabase.from("data_quality_issues").insert({
+            sync_run_id: syncRunId,
+            source_sheet: r.source_sheet,
+            issue_code: "ERRO_UPDATE",
+            severity: "ERROR",
+            message: updateErr.message,
+            raw_value: JSON.stringify(r),
+            resolved: false,
+          });
         } else {
           updated++;
         }
@@ -133,44 +153,52 @@ serve(async (req) => {
             is_active: true,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-            synced_at: new Date().toISOString()
+            synced_at: new Date().toISOString(),
           });
 
         if (insertErr) {
           console.error("Erro ao inserir registro:", insertErr);
+          await supabase.from("data_quality_issues").insert({
+            sync_run_id: syncRunId,
+            source_sheet: r.source_sheet,
+            issue_code: "ERRO_INSERT",
+            severity: "ERROR",
+            message: insertErr.message,
+            raw_value: JSON.stringify(r),
+            resolved: false,
+          });
         } else {
           inserted++;
         }
       }
     }
 
-    // Finalizar registro de sync_run com sucesso
+    // 4. Finalizar sync_run com status final
     await supabase
       .from("sync_runs")
       .update({
         status: "SUCCESS",
         rows_inserted: inserted,
         rows_updated: updated,
-        rows_skipped: skipped,
-        rows_ignored: ignored,
-        completed_at: new Date().toISOString()
+        rows_rejected: ignored,
+        finished_at: new Date().toISOString(),
       })
-      .eq("id_sync", syncId);
+      .eq("id", syncRunId);
 
     return new Response(
       JSON.stringify({
         success: true,
-        sync_id: syncId,
+        sync_id: syncRunId,
         summary: {
+          total: rows.length,
           inserted,
           updated,
           skipped,
           ignored,
-          total: rows.length
-        }
+        },
       }),
       {
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CORS_HEADERS },
         status: 200,
       }
     );
@@ -178,7 +206,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ success: false, error: String(err) }),
       {
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CORS_HEADERS },
         status: 500,
       }
     );
