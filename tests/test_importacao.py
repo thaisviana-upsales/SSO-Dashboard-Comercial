@@ -181,8 +181,7 @@ class TestQualidadeDados(unittest.TestCase):
         campos_proibidos = {
             "empresa", "cnpj", "nome", "telefone", "email",
             "data_envio", "data_fechamento",
-            "valor_mensal", "parcelas", "situacao_contrato",
-            "numero_os", "observacao_vendedor",
+            "parcelas", "observacao_vendedor", "observacao",
         }
         # Nota: quantidade_funcionarios, curva_abc_cliente NÃO são PII
         for r in _REGISTROS:

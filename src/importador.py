@@ -431,9 +431,9 @@ def importar_excel(
 
             # Data da coluna B: converter para YYYY-MM-DD
             data_referencia = _converter_data(data_raw, mes_num, ano)
-            # Registros pré-julho 2026 sem data real → mantém None (sem inventar)
-            # O frontend mostrará aviso para filtros diários nesse período.
-            tem_data_real = data_referencia is not None
+            if data_referencia is None:
+                data_referencia = f"{ano:04d}-{mes_num:02d}-01"
+            tem_data_real = data_raw is not None and _converter_data(data_raw, mes_num, ano) is not None
 
             # Valor total: converter formato BR
             valor_convertido = _converter_valor_br(valor_raw)
@@ -453,32 +453,48 @@ def importar_excel(
                     })
 
             # ---------------------------------------------------------------
-            # Montar registro normalizado (SEM dados pessoais)
+            # Montar registro normalizado (SEM dados pessoais PII na view)
             # ---------------------------------------------------------------
             contador_global += 1
             contador_aba    += 1
+            rec_id          = str(uuid.uuid4())
 
             registro: Dict[str, Any] = {
-                "id_registro":        str(uuid.uuid4()),
+                "id_registro":        rec_id,
+                "source_type":        "EXCEL_HISTORICO",
+                "spreadsheet_id":     None,
+                "source_sheet":       aba_nome,
+                "source_record_id":   rec_id,
                 "mes_numero":         mes_num,
                 "mes_nome":           mes_nome,
                 "ano":                ano,
+                "mes_referencia":     mes_num,
+                "ano_referencia":     ano,
                 "aba_origem":         aba_nome,
                 "linha_origem":       linha_num,
                 "qtd_original":       qtd_original,
                 "tipo_contrato":      tipo_contrato,
                 "valor_total":        valor_convertido,
+                "valor_mensal":       valor_convertido,
                 "status":             status_armazenado,
                 "fonte_lead":         fonte_lead,
                 "vendedor":           vendedor,
-                "flag_valor_invalido":        flag_valor_invalido,
-                # ── Campos DATA (Etapa 3 — Filtro por Data Específica) ──
-                "data_referencia":    data_referencia,   # YYYY-MM-DD ou None
+                "tipo_base":          None,
+                "situacao_contrato":  None,
+                "numero_os":          None,
+                "flag_valor_invalido": flag_valor_invalido,
+                "row_hash":           None,
+                "is_active":          True,
+                # ── Campos DATA (Corte 01/07/2026) ──
+                "data_referencia":    data_referencia,   # YYYY-MM-DD
                 "tem_data_real":      tem_data_real,     # bool: se tem data da col B
-                # ── Campos Curva ABC (Etapa 2 — Qualidade de Vendas) ──
+                # ── Campos Curva ABC (Qualidade de Vendas) ──
                 "quantidade_funcionarios_original": qtd_func_raw,
                 "quantidade_funcionarios":          qtd_func_convertida,
                 "curva_abc_cliente":                curva_abc,
+                "created_at":         data_importacao,
+                "updated_at":         data_importacao,
+                "synced_at":          data_importacao,
                 "data_importacao":    data_importacao,
             }
 

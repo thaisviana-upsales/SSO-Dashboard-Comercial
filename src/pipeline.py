@@ -43,19 +43,32 @@ def main() -> None:
     print(f"      → {len(registros)} registros | {len(problemas)} problemas")
 
     # ------------------------------------------------------------------
-    # 2. PERSISTIR BASE ANALÍTICA
+    # 2. PERSISTIR BASE FÍSICA E BASE CONSOLIDADA DA VIEW
     # ------------------------------------------------------------------
-    print("\n[2/4] Salvando base analítica...")
-    salvar_base(registros, SAIDA_JSON)
+    print("\n[2/4] Aplicando regra de corte (view_dashboard_consolidado)...")
+    base_fisica_json = Path(__file__).parent.parent / "output" / "base_registros_comerciais.json"
+    salvar_base(registros, base_fisica_json)
+
+    # Filtrar registros exibidos na view consolidada
+    view_registros = [
+        r for r in registros
+        if r.get("is_active", True) and (
+            (r.get("source_type") == "EXCEL_HISTORICO" and r.get("data_referencia", "") < "2026-07-01")
+            or
+            (r.get("source_type") == "GOOGLE_SHEETS_LIVE" and r.get("data_referencia", "") >= "2026-07-01")
+        )
+    ]
+
+    salvar_base(view_registros, SAIDA_JSON)
     salvar_qualidade(problemas, LOG_QUALIDADE)
-    print(f"      → {SAIDA_JSON}")
-    print(f"      → {LOG_QUALIDADE}")
+    print(f"      → Base física completa (auditoria): {len(registros)} registros")
+    print(f"      → Base view consolidada (dashboard): {len(view_registros)} registros")
 
     # ------------------------------------------------------------------
-    # 3. AGREGAR INDICADORES
+    # 3. AGREGAR INDICADORES DA VIEW CONSOLIDADA
     # ------------------------------------------------------------------
-    print("\n[3/4] Calculando indicadores...")
-    resumo     = gerar_resumo_completo(registros)
+    print("\n[3/4] Calculando indicadores da view consolidada...")
+    resumo      = gerar_resumo_completo(view_registros)
     indicadores = resumo["consolidado"]
     por_mes     = resumo["por_mes"]
 
@@ -97,7 +110,7 @@ def main() -> None:
     print("\n" + "=" * 60)
     print("  CURVA ABC — CLASSIFICAÇÃO DE PORTE DE CLIENTES")
     print("=" * 60)
-    curva_resultado = agregar_por_curva(registros)
+    curva_resultado = agregar_por_curva(view_registros)
     print("\n" + resumo_curva_texto(curva_resultado))
 
     # Salvar curva no resumo

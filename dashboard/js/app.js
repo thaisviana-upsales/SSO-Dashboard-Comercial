@@ -353,6 +353,49 @@
     $('btn-export-csv').addEventListener('click', exportCSV);
     $('btn-export-pdf').addEventListener('click', () => window.print());
 
+    // Sincronização Live — Botão ATUALIZAR PAINEL
+    const btnSync = $('btn-sync-now');
+    const btnSyncText = $('btn-sync-text');
+    if (btnSync) {
+      btnSync.addEventListener('click', async () => {
+        if (btnSync.disabled) return;
+        btnSync.disabled = true;
+        if (btnSyncText) btnSyncText.textContent = 'Atualizando...';
+
+        try {
+          const syncResp = await fetch('https://wutmhhqbdwslwiawqwut.supabase.co/functions/v1/sync-sheets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trigger: 'manual_button_click' })
+          });
+          const syncResData = await syncResp.json().catch(() => ({}));
+
+          const dataResp = await fetch('https://wutmhhqbdwslwiawqwut.supabase.co/rest/v1/view_dashboard_consolidado?select=*', {
+            headers: { 'Accept': 'application/json' }
+          });
+          if (dataResp.ok) {
+            const freshRecords = await dataResp.json();
+            if (Array.isArray(freshRecords) && freshRecords.length > 0) {
+              ALL.length = 0;
+              ALL.push(...freshRecords);
+            }
+          }
+
+          const s = syncResData.summary || { inserted: 0, updated: 0, skipped: 0 };
+          const nowStr = new Date().toLocaleString('pt-BR');
+          if ($('last-update')) $('last-update').textContent = 'Última sincronização: ' + nowStr;
+          alert(`Sincronização concluída com sucesso!\n\nInseridos: ${s.inserted || 0}\nAtualizados: ${s.updated || 0}\nInalterados: ${s.skipped || 0}`);
+        } catch (err) {
+          console.error('[SSO] Erro na sincronização:', err);
+          alert('Aviso: Não foi possível sincronizar com o servidor remoto. Mantendo os dados atuais.');
+        } finally {
+          btnSync.disabled = false;
+          if (btnSyncText) btnSyncText.textContent = 'ATUALIZAR PAINEL';
+          applyFilters();
+        }
+      });
+    }
+
     // Keyboard ESC fecha drawer
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
   }

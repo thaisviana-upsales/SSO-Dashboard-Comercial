@@ -1,13 +1,13 @@
 ======================================================================
   RELATÓRIO DE QUALIDADE — DASHBOARD COMERCIAL SSO
-  Gerado em: 21/07/2026 15:31:29
+  Gerado em: 22/07/2026 09:53:24
 ======================================================================
 
 1. RESUMO DA IMPORTAÇÃO
 ----------------------------------------------------------------------
-  Total de registros importados :  1,265
+  Total de registros importados :  1,157
   Problemas registrados         :     13
-  Registros com valor inválido  :     12
+  Registros com valor inválido  :     11
   Contratos fechados s/ valor   :      5
 
 2. CONTAGEM POR ABA (Leads / Oportunidades)
@@ -18,34 +18,33 @@
   Abril        (Abril26     )   249 registros  ✅
   Maio         (Maio26      )   265 registros  ✅
   Junho        (Junho26     )   227 registros  ✅
-  Julho        (Julho26     )   108 registros  ✅
-  TOTAL                      1265 registros  ✅
+  TOTAL                      1157 registros  ⚠️  (esperado: 1265)
 
 3. INDICADORES CONSOLIDADOS
 ----------------------------------------------------------------------
-  Leads / Oportunidades        :      1,265
-  Propostas Enviadas           :      1,265
-  Qtd. de Vendas               :        635
-  Propostas Abertas            :        387
-  Recusadas                    :        243
+  Leads / Oportunidades        :      1,157
+  Propostas Enviadas           :      1,157
+  Qtd. de Vendas               :        604
+  Propostas Abertas            :        321
+  Recusadas                    :        232
   Outros / Sem status          :          0
-  Conversão de Vendas          :      50.20%
-  Previsão de Faturamento      : R$    5,969,373.38
-  Faturamento Total de Vendas  : R$    1,676,229.28
+  Conversão de Vendas          :      52.20%
+  Previsão de Faturamento      : R$    5,687,628.08
+  Faturamento Total de Vendas  : R$    1,637,225.68
 
   TESTES DE ACEITE:
-  ✅  Leads total = 1.265
-  ✅  Propostas Enviadas = 1.265
-  ✅  Qtd. de Vendas = 635
-  ✅  Propostas Abertas = 387
-  ✅  Recusadas = 243
-  ✅  Conversão ≈ 50,20%
-  ✅  Previsão = R$ 5.969.373,38
-  ✅  Fat. Vendas = R$ 1.676.229,28
-  ✅  12 registros s/ valor válido (X/x)
+  ❌  Leads total = 1.265
+  ❌  Propostas Enviadas = 1.265
+  ❌  Qtd. de Vendas = 635
+  ❌  Propostas Abertas = 387
+  ❌  Recusadas = 243
+  ❌  Conversão ≈ 50,20%
+  ❌  Previsão = R$ 5.969.373,38
+  ❌  Fat. Vendas = R$ 1.676.229,28
+  ❌  12 registros s/ valor válido (X/x)
   ✅  5 contratos fechados s/ valor
 
-  🎉 TODOS OS TESTES DE ACEITE PASSARAM.
+  ⚠️  ATENÇÃO: Um ou mais testes de aceite falharam.
 
 4. DETALHAMENTO DOS PROBLEMAS DE QUALIDADE
 ----------------------------------------------------------------------
