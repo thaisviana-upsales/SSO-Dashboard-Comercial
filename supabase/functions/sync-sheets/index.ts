@@ -28,6 +28,29 @@ const TABLE    = "registros_comerciais";
 const DATE_MIN = "2026-07-01";
 const DATE_MAX = "2026-12-31";
 
+/**
+ * Verifica se uma linha tem pelo menos um evento comercial dentro do período.
+ *
+ *   evento_oportunidade = data_referencia >= DATE_MIN e <= DATE_MAX
+ *   evento_proposta     = data_envio_orcamento >= DATE_MIN e <= DATE_MAX
+ *   evento_venda        = status=CONTRATO FECHADO e data_fechamento >= DATE_MIN e <= DATE_MAX
+ *
+ * Retorna false somente se NENHUM dos três eventos estiver no período.
+ */
+function dentroDoPeriodo(
+  dataRef: string | null,
+  dataEnvio: string | null,
+  dataFech: string | null,
+  status: string | null
+): boolean {
+  const st = (status || "").trim().toUpperCase();
+  const evtOpp   = !!dataRef   && dataRef   >= DATE_MIN && dataRef   <= DATE_MAX;
+  const evtProp  = !!dataEnvio && dataEnvio >= DATE_MIN && dataEnvio <= DATE_MAX;
+  const evtVenda = st === "CONTRATO FECHADO"
+                   && !!dataFech && dataFech >= DATE_MIN && dataFech <= DATE_MAX;
+  return evtOpp || evtProp || evtVenda;
+}
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin" : "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -171,19 +194,23 @@ serve(async (req) => {
 
   // ── Processar cada linha ───────────────────────────────────────────────
   for (const r of rows) {
-    const dataRef        = r.data_referencia as string | null;
-    const sourceRecordId = r.source_record_id as string | null;
-    const sourceSheet    = r.source_sheet as string | null;
+    const sourceRecordId = r.source_record_id  as string | null;
+    const sourceSheet    = r.source_sheet      as string | null;
+    const dataRef        = r.data_referencia   as string | null;
+    const dataEnvio      = r.data_envio_orcamento as string | null;
+    const dataFech       = r.data_fechamento   as string | null;
+    const statusStr      = r.status            as string | null;
 
-    // Validação de data — regra de corte [DATE_MIN, DATE_MAX]
-    if (!dataRef || dataRef < DATE_MIN || dataRef > DATE_MAX) {
+    // Validação de período — aceitar se QUALQUER evento estiver no período
+
+    if (!dentroDoPeriodo(dataRef, dataEnvio, dataFech, statusStr)) {
       ignored++;
       await supabase.from("data_quality_issues").insert({
         sync_run_id : syncRunId,
         source_sheet: sourceSheet,
-        issue_code  : dataRef && dataRef > DATE_MAX ? "DATA_ALEM_DO_PERIODO" : "DATA_FORA_DO_CORTE",
-        severity    : dataRef && dataRef > DATE_MAX ? "WARNING" : "INFO",
-        message     : `data_referencia '${dataRef}' fora de [${DATE_MIN}, ${DATE_MAX}]`,
+        issue_code  : "FORA_DO_PERIODO",
+        severity    : "INFO",
+        message     : `Nenhum evento no período [${DATE_MIN}, ${DATE_MAX}]. ref='${dataRef}' envio='${dataEnvio}' fech='${dataFech}'`,
         raw_value   : JSON.stringify(r).slice(0, 500),
         resolved    : false,
       });
