@@ -42,6 +42,11 @@ window.SSO_SUPABASE = (() => {
       || (r.data_referencia ? parseInt(r.data_referencia.slice(5, 7), 10) : null);
     const qtdFunc = r.quantidade_funcionarios ?? null;
 
+    // data_fechamento: normalizar mês e ano para o Engine
+    const dataFech = r.data_fechamento || null;
+    const mesFechNum = dataFech ? parseInt(dataFech.slice(5, 7), 10) : null;
+    const anoFech    = dataFech ? parseInt(dataFech.slice(0, 4), 10) : null;
+
     // Curva ABC — mesma lógica do pipeline.py
     let curva = 'Sem classificação';
     if (qtdFunc !== null && qtdFunc !== undefined) {
@@ -60,6 +65,10 @@ window.SSO_SUPABASE = (() => {
       mes_nome               : mesNum ? (Engine.MES_NOME || {})[mesNum] : '',
       ano                    : r.ano_referencia
                                || (r.data_referencia ? parseInt(r.data_referencia.slice(0, 4), 10) : null),
+      // Campos de fechamento (para Engine separar data de venda)
+      data_fechamento        : dataFech,
+      mes_fechamento_numero  : mesFechNum,
+      ano_fechamento         : anoFech,
       curva_abc_cliente      : curva,
       // valor_total null = inválido
       flag_valor_invalido    : r.valor_total === null || r.valor_total === undefined,
@@ -72,16 +81,27 @@ window.SSO_SUPABASE = (() => {
     };
   }
 
-  // ── Buscar somente registros GOOGLE_SHEETS_LIVE da view ──────────────
+  // ── Buscar somente registros GOOGLE_SHEETS_LIVE da view ──
   async function fetchLive() {
     const resp = await fetch(VIEW_URL, { headers: AUTH_HEADERS });
     if (!resp.ok) throw new Error('Erro ao buscar dados live: ' + resp.status);
     const registros = await resp.json();
     if (!Array.isArray(registros)) throw new Error('Resposta inesperada da view');
-    // Garantia extra: somente live com data >= CORTE_DATA
+
+    // A view já aplica a regra de transição (condição A ou B).
+    // Garantia extra no cliente: somente GOOGLE_SHEETS_LIVE com pelo menos
+    // um evento comercial a partir de CORTE_DATA.
     return registros
-      .filter(r => r.source_type === 'GOOGLE_SHEETS_LIVE'
-                && r.data_referencia >= CORTE_DATA)
+      .filter(r => {
+        if (r.source_type !== 'GOOGLE_SHEETS_LIVE') return false;
+        // Condição A: oportunidade nova (data_referencia >= corte)
+        if (r.data_referencia && r.data_referencia >= CORTE_DATA) return true;
+        // Condição B: fechamento em julho+ (registro de transição)
+        const st = (r.status || '').trim().toUpperCase();
+        if (st === 'CONTRATO FECHADO'
+            && r.data_fechamento && r.data_fechamento >= CORTE_DATA) return true;
+        return false;
+      })
       .map(normalizarRegistroLive);
   }
 
