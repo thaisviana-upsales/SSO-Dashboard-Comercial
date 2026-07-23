@@ -228,17 +228,38 @@ function lerDadosSanitizados() {
 
       const dateStr = formatDateISO(dateObj);
 
-      // Rejeitar datas fora do intervalo [DATE_MIN, DATE_MAX]
-      if (dateStr < CONFIG.DATE_MIN) {
+      // ── Regra de importação com suporte a registros de transição ──
+      //
+      // CONDIÇÃO A: data_referencia (coluna B) >= DATE_MIN
+      //   Oportunidade nova criada a partir de julho.
+      //
+      // CONDIÇÃO B: status = CONTRATO FECHADO e data_fechamento >= DATE_MIN
+      //   Oportunidade criada antes de julho, mas fechada em julho+.
+      //   Exemplo: opp criada em maio, fechada em 22/07 → importar.
+      //
+      // Linhas que não atendem nenhuma condição são silenciosamente ignoradas.
+
+      // Extrair data_fechamento antecipado para usar na condição B
+      const dataFechAntecipadoVal = parseDateField(rowVals, colMap["data_fechamento"]);
+      const statusAntecipadoVal   = getVal(rowVals, colMap["status"]) || "";
+      const ehContratoFechado = statusAntecipadoVal.trim().toUpperCase() === "CONTRATO FECHADO";
+
+      const condicaoA = (dateStr >= CONFIG.DATE_MIN && dateStr <= CONFIG.DATE_MAX);
+      const condicaoB = ehContratoFechado
+        && dataFechAntecipadoVal !== null
+        && dataFechAntecipadoVal >= CONFIG.DATE_MIN
+        && dataFechAntecipadoVal <= CONFIG.DATE_MAX;
+
+      if (!condicaoA && !condicaoB) {
+        // Linha anterior ao corte sem fechamento em julho+ → ignorar (silencioso)
         entry.ignorado++;
-        // silencioso para datas históricas (esperado)
         continue;
       }
+
+      // Avisar se data_referencia está além de DATE_MAX (dado anormal)
       if (dateStr > CONFIG.DATE_MAX) {
-        entry.ignorado++;
-        entry.motivos.push("Linha " + (r + 1) + ": data '" + dateStr
+        entry.motivos.push("Linha " + (r + 1) + ": data_referencia '" + dateStr
           + "' após " + CONFIG.DATE_MAX + " — PROBLEMA DE QUALIDADE");
-        continue;
       }
 
       // ── ID_REGISTRO estável ──
@@ -265,11 +286,12 @@ function lerDadosSanitizados() {
       const qtdFuncVal      = parseFunc(getVal(rowVals, colMap["qtd_func"]));
       const fonteLeadVal    = getVal(rowVals, colMap["fonte_lead"]);
       const dataEnvioVal    = parseDateField(rowVals, colMap["data_envio"]);
-      const dataFechVal     = parseDateField(rowVals, colMap["data_fechamento"]);
+      // Reusar o valor já extraído na verificação de transição
+      const dataFechVal     = dataFechAntecipadoVal;
       const valorMensalVal  = parseValorMensal(getVal(rowVals, colMap["valor_mensal"]));
       const parcelasVal     = parseFunc(getVal(rowVals, colMap["parcelas"]));
       const valorTotalVal   = parseValorTotal(getVal(rowVals, colMap["valor_total"]));
-      const statusVal       = getVal(rowVals, colMap["status"]);
+      const statusVal       = statusAntecipadoVal || null;   // já extraído acima
       const tipoContratoVal = getVal(rowVals, colMap["tipo_contrato"]);
       const tipoBaseVal     = getVal(rowVals, colMap["tipo_base"]);
       const situacaoVal     = getVal(rowVals, colMap["situacao_contrato"]);
@@ -285,7 +307,7 @@ function lerDadosSanitizados() {
 
       const rowHash = computeRowHash([
         dateStr, recordId, vendedorVal, qtdFuncVal, fonteLeadVal,
-        valorMensalVal, valorTotalVal, statusVal, tipoContratoVal
+        valorMensalVal, valorTotalVal, statusVal, tipoContratoVal, dataFechVal
       ]);
 
       rows.push({
