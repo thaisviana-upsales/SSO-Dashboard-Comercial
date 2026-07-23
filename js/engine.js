@@ -79,17 +79,26 @@ const Engine = (() => {
   /**
    * filter — usado para selecionar registros antes de calcular KPIs.
    *
-   * O filtro de mês (f.months) aplica-se a OPORTUNIDADES (mes_numero).
-   * Vendas e faturamento dentro de cada KPI verificam internamente
-   * se a data_fechamento está no mês correto.
+   * Filtro de mês usa lógica OR:
+   *   - Inclui se mes_numero (data_referencia) está nos meses selecionados, OU
+   *   - Inclui se mes_fechamento_numero (data_fechamento) está nos meses selecionados
+   *     E o status é CONTRATO FECHADO (registros de transição: criados antes, fechados no mês).
    *
-   * Isso permite: "oportunidade de maio fechada em julho" aparecer
-   * como lead quando filtro=maio, e como venda quando filtro=julho.
+   * Isso garante que registros de transição (ex: opp criada em junho, fechada
+   * em julho) apareçam como lead/proposta em junho E como venda em julho.
    */
   function filter(records, f) {
     return records.filter(r => {
-      // Filtro de mês: por data_referencia (oportunidade)
-      if (f.months?.length  && !f.months.includes(r.mes_numero))          return false;
+      // Filtro de mês com suporte a registros de transição
+      if (f.months?.length) {
+        const noMesOportunidade = f.months.includes(r.mes_numero);
+        // Registro de transição: CONTRATO FECHADO cujo fechamento está no mês filtrado
+        const mFech = r.mes_fechamento_numero ?? null;
+        const noMesFechamento = mFech !== null
+          && f.months.includes(mFech)
+          && normStatus(r.status) === 'CONTRATO FECHADO';
+        if (!noMesOportunidade && !noMesFechamento) return false;
+      }
       if (f.vendedor?.length && !f.vendedor.includes(r.vendedor))          return false;
       if (f.fonte?.length    && !f.fonte.includes(r.fonte_lead))           return false;
       if (f.status?.length   && !f.status.includes(normStatus(r.status)))  return false;
@@ -233,27 +242,37 @@ const Engine = (() => {
       });
   }
 
-  // ── Por Tipo de Contrato ───────────────────────────────────────────────
+  // ── Por Tipo de Contrato ─────────────────────────────────────────────
   /**
-   * Leads e propostas: conta por data_referencia (qualquer registro).
-   * Vendas e faturamento: conta CONTRATO FECHADO por data_fechamento.
-   * Nota: months não é passado aqui pois os registros já foram filtrados
-   * pelo filtro de oportunidade. Vendas por tipo de contrato contam todos
-   * os fechamentos presentes nos registros.
+   * Leads/propostas: agrupados por mes_numero (data_referencia).
+   * Vendas/faturamento: CONTRATO FECHADO agrupados por mes_fechamento_numero.
+   *
+   * months: array de meses selecionados. [] ou undefined = todos.
    */
-  function byTipoContrato(records) {
+  function byTipoContrato(records, months) {
     const map = {};
     for (const r of records) {
       if (!temContrato(r)) continue;
       const tipo = r.tipo_contrato.trim();
       if (!map[tipo]) map[tipo] = { leads: 0, propostas: 0, vendas: 0, prevFat: 0, fatVendas: 0 };
       const d = map[tipo];
-      d.leads++;
-      d.propostas++;
-      if (valorValido(r)) d.prevFat += r.valor_total;
+
+      // Contar lead/proposta somente se a oportunidade está no mês filtrado
+      const mOpp = r.mes_numero ?? null;
+      const oportunidadeNoMes = !months?.length || (mOpp !== null && months.includes(mOpp));
+      if (oportunidadeNoMes) {
+        d.leads++;
+        d.propostas++;
+        if (valorValido(r)) d.prevFat += r.valor_total;
+      }
+
       if (normStatus(r.status) === 'CONTRATO FECHADO') {
-        d.vendas++;
-        if (valorValido(r)) d.fatVendas += r.valor_total;
+        const mFech = mesFechamento(r);
+        const vendaNoMes = !months?.length || (mFech !== null && months.includes(mFech));
+        if (vendaNoMes) {
+          d.vendas++;
+          if (valorValido(r)) d.fatVendas += r.valor_total;
+        }
       }
     }
     return Object.entries(map)
@@ -265,21 +284,31 @@ const Engine = (() => {
       .sort((a, b) => b.propostas - a.propostas);
   }
 
-  // ── Por Fonte do Lead ──────────────────────────────────────────────────
-  function byFonte(records) {
+  // ── Por Fonte do Lead ───────────────────────────────────────────────
+  function byFonte(records, months) {
     const map = {};
     for (const r of records) {
       const f = r.fonte_lead || '(sem fonte)';
       if (!map[f]) map[f] = { leads: 0, propostas: 0, vendas: 0, prevFat: 0, fatVendas: 0 };
       const d = map[f];
-      d.leads++;
-      if (temContrato(r)) {
-        d.propostas++;
-        if (valorValido(r)) d.prevFat += r.valor_total;
+
+      const mOpp = r.mes_numero ?? null;
+      const oportunidadeNoMes = !months?.length || (mOpp !== null && months.includes(mOpp));
+      if (oportunidadeNoMes) {
+        d.leads++;
+        if (temContrato(r)) {
+          d.propostas++;
+          if (valorValido(r)) d.prevFat += r.valor_total;
+        }
       }
+
       if (normStatus(r.status) === 'CONTRATO FECHADO') {
-        d.vendas++;
-        if (valorValido(r)) d.fatVendas += r.valor_total;
+        const mFech = mesFechamento(r);
+        const vendaNoMes = !months?.length || (mFech !== null && months.includes(mFech));
+        if (vendaNoMes) {
+          d.vendas++;
+          if (valorValido(r)) d.fatVendas += r.valor_total;
+        }
       }
     }
     return Object.entries(map)
@@ -291,21 +320,39 @@ const Engine = (() => {
       .sort((a, b) => b.propostas - a.propostas);
   }
 
-  // ── Por Vendedor ───────────────────────────────────────────────────────
-  function byVendedor(records) {
+  // ── Por Vendedor ───────────────────────────────────────────────────────────────────
+  /**
+   * months: array de meses selecionados. [] ou undefined = todos.
+   * - Leads/propostas: contados quando mes_numero está no filtro
+   * - Vendas/faturamento: contados quando mes_fechamento_numero está no filtro
+   *   (suporta registros de transição: opp de mês anterior fechada no mês filtrado)
+   */
+  function byVendedor(records, months) {
     const map = {};
     for (const r of records) {
       const v = r.vendedor || '(sem vendedor)';
       if (!map[v]) map[v] = { leads: 0, propostas: 0, vendas: 0, prevFat: 0, fatVendas: 0 };
       const d = map[v];
-      d.leads++;
-      if (temContrato(r)) {
-        d.propostas++;
-        if (valorValido(r)) d.prevFat += r.valor_total;
+
+      // Lead/proposta pelo mês da oportunidade (data_referencia)
+      const mOpp = r.mes_numero ?? null;
+      const oportunidadeNoMes = !months?.length || (mOpp !== null && months.includes(mOpp));
+      if (oportunidadeNoMes) {
+        d.leads++;
+        if (temContrato(r)) {
+          d.propostas++;
+          if (valorValido(r)) d.prevFat += r.valor_total;
+        }
       }
+
+      // Venda pelo mês do fechamento (data_fechamento)
       if (normStatus(r.status) === 'CONTRATO FECHADO') {
-        d.vendas++;
-        if (valorValido(r)) d.fatVendas += r.valor_total;
+        const mFech = mesFechamento(r);
+        const vendaNoMes = !months?.length || (mFech !== null && months.includes(mFech));
+        if (vendaNoMes) {
+          d.vendas++;
+          if (valorValido(r)) d.fatVendas += r.valor_total;
+        }
       }
     }
     return Object.entries(map)

@@ -44,7 +44,7 @@
 
   // ── KPIs ──────────────────────────────────────────────────────────────
   function renderKPIs() {
-    const k = Engine.kpis(filtered);
+    const k = Engine.kpis(filtered, state.months);
 
     // Comparação com período anterior (quando 1 mês selecionado)
     let prev = null;
@@ -53,7 +53,7 @@
       const prevMonth = m - 1;
       if (prevMonth >= 1) {
         const prevRecs = Engine.filter(ALL, { months: [prevMonth], vendedor: state.vendedor ? [state.vendedor] : [], fonte: state.fonte ? [state.fonte] : [], status: state.status ? [state.status] : [], tipo: state.tipo ? [state.tipo] : [] });
-        prev = Engine.kpis(prevRecs);
+        prev = Engine.kpis(prevRecs, [prevMonth]);
       }
     }
 
@@ -97,7 +97,7 @@
     const total = filtered.length;
     Charts.renderDonut(statusData, total);
 
-    const tiposData = Engine.byTipoContrato(filtered);
+    const tiposData = Engine.byTipoContrato(filtered, state.months);
     Charts.renderTipos(tiposData, tipo => {
       state.tipo = tipo;
       $('sel-tipo').value = tipo;
@@ -105,13 +105,13 @@
       updateChips();
     });
 
-    Charts.renderFonte(Engine.byFonte(filtered));
-    Charts.renderVendedores(Engine.byVendedor(filtered), state.vendedorMetric);
+    Charts.renderFonte(Engine.byFonte(filtered, state.months));
+    Charts.renderVendedores(Engine.byVendedor(filtered, state.months), state.vendedorMetric);
   }
 
   // ── Tabela ────────────────────────────────────────────────────────────
   function renderTable() {
-    const data = Engine.byVendedor(filtered);
+    const data = Engine.byVendedor(filtered, state.months);
     const { col, asc } = state.tableSort;
 
     data.sort((a, b) => {
@@ -142,7 +142,7 @@
         <td>${fmtBRL(d.fatVendas)}</td>
       </tr>`).join('');
 
-    const tot = Engine.kpis(filtered);
+    const tot = Engine.kpis(filtered, state.months);
     $('table-foot').innerHTML = `<tr>
       <td>Total</td>
       <td>${fmtNum(tot.leads)}</td>
@@ -158,7 +158,7 @@
   let drawerData = [];
 
   function openDrawer() {
-    drawerData = Engine.byTipoContrato(filtered);
+    drawerData = Engine.byTipoContrato(filtered, state.months);
     renderDrawerList(drawerData);
     $('drawer-ranking').classList.add('open');
     $('drawer-overlay').classList.add('open');
@@ -266,8 +266,8 @@
 
   // ── Exportar CSV ──────────────────────────────────────────────────────
   function exportCSV() {
-    const data = Engine.byVendedor(filtered);
-    const tot = Engine.kpis(filtered);
+    const data = Engine.byVendedor(filtered, state.months);
+    const tot = Engine.kpis(filtered, state.months);
     const header = 'Vendedor,Leads,Propostas,Vendas,Conversao (%),Prev.Faturamento (R$),Fat.Vendas (R$)\n';
     const rows = data.map(d => `"${d.vendedor}",${d.leads},${d.propostas},${d.vendas},${d.conversao.toFixed(2)},${d.prevFat.toFixed(2)},${d.fatVendas.toFixed(2)}`).join('\n');
     const footer = `\nTOTAL,${tot.leads},${tot.propostas},${tot.vendas},${tot.conversao.toFixed(2)},${tot.prevFat.toFixed(2)},${tot.fatVendas.toFixed(2)}`;
@@ -337,7 +337,7 @@
         document.querySelectorAll('.metric-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         state.vendedorMetric = btn.dataset.metric;
-        Charts.renderVendedores(Engine.byVendedor(filtered), state.vendedorMetric);
+        Charts.renderVendedores(Engine.byVendedor(filtered, state.months), state.vendedorMetric);
       });
     });
 
