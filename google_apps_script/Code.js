@@ -242,12 +242,21 @@ function lerDadosSanitizados() {
       }
 
       // ── ID_REGISTRO estável ──
+      // Prioridade 1: UUID já gravado na coluna ID_REGISTRO da planilha
+      // Prioridade 2: ID determinístico derivado de posição estável da linha
+      //   → garante idempotência mesmo que o setValue não tenha sido persistido
       let recordId = (idColIdx < rowVals.length)
         ? String(rowVals[idColIdx]).trim() : "";
+
+      const deterministicId = makeDeterministicId(
+        CONFIG.SPREADSHEET_ID, tabName, r + 1 // número real da linha (1-based)
+      );
+
       if (!recordId || recordId === "undefined" || recordId === "null"
           || recordId.length < 10) {
-        recordId = Utilities.getUuid();
-        sheet.getRange(r + 1, idColIdx + 1).setValue(recordId);
+        // Usar ID determinístico E tentar gravar na planilha para auditoria
+        recordId = deterministicId;
+        try { sheet.getRange(r + 1, idColIdx + 1).setValue(recordId); } catch(_) {}
       }
 
       // ── Extrair campos comerciais (SEM PII) ──
@@ -305,6 +314,9 @@ function lerDadosSanitizados() {
       });
       entry.valido++;
     }
+
+    // Confirmar escritas pendentes (IDs gravados nas células)
+    try { SpreadsheetApp.flush(); } catch(_) {}
 
     log.push(entry);
   });
@@ -483,4 +495,27 @@ function computeRowHash(arr) {
   return bytes.map(function(b) {
     return (b < 0 ? b + 256 : b).toString(16).padStart(2, "0");
   }).join("");
+}
+
+/**
+ * Gera ID estável e determinístico para uma linha da planilha.
+ * Baseado em: spreadsheet_id + "|" + tabName + "|" + rowNum (1-based)
+ *
+ * GARANTIA DE IDEMPOTÊNCIA:
+ *   A mesma linha física sempre recebe o mesmo ID, independente de quantas
+ *   vezes a sincronização for executada. Não requer leitura prévia da célula.
+ *
+ * NOTA: Se uma linha for deletada e outra inserida na mesma posição,
+ * o ID será reusado. Esse cenário é improvável em planilhas de vendas
+ * append-only. Caso ocorra, a Edge Function atualizará o registro existente.
+ */
+function makeDeterministicId(spreadsheetId, tabName, rowNum) {
+  const key = spreadsheetId + "|" + tabName + "|" + String(rowNum);
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, key);
+  const hex = bytes.map(function(b) {
+    return (b < 0 ? b + 256 : b).toString(16).padStart(2, "0");
+  }).join("");
+  // Formatar como UUID v4 (sem randomness, apenas estrutura visual)
+  return hex.slice(0,8) + "-" + hex.slice(8,12) + "-4" + hex.slice(13,16) +
+         "-a" + hex.slice(17,20) + "-" + hex.slice(20,32);
 }
