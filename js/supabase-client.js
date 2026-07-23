@@ -38,14 +38,23 @@ window.SSO_SUPABASE = (() => {
   // (mes_numero, curva_abc_cliente, etc.) que o pipeline.py injeta no data.js.
   // Aqui os recalculamos para os registros live.
   function normalizarRegistroLive(r) {
-    const mesNum = r.mes_referencia
-      || (r.data_referencia ? parseInt(r.data_referencia.slice(5, 7), 10) : null);
-    const qtdFunc = r.quantidade_funcionarios ?? null;
+    // Mês da OPORTUNIDADE (data_referencia / coluna B)
+    const mesNum = r.mes_numero                  // calculado pela nova view
+      ?? r.mes_referencia
+      ?? (r.data_referencia ? parseInt(r.data_referencia.slice(5, 7), 10) : null);
 
-    // data_fechamento: normalizar mês e ano para o Engine
+    // Mês do ENVIO DO ORÇAMENTO (propostas)
+    const mesEnvioNum = r.mes_envio_numero       // calculado pela nova view
+      ?? (r.data_envio_orcamento ? parseInt(r.data_envio_orcamento.slice(5, 7), 10) : null);
+    const anoEnvio = r.data_envio_orcamento ? parseInt(r.data_envio_orcamento.slice(0, 4), 10) : null;
+
+    // Mês do FECHAMENTO (vendas)
     const dataFech = r.data_fechamento || null;
-    const mesFechNum = dataFech ? parseInt(dataFech.slice(5, 7), 10) : null;
-    const anoFech    = dataFech ? parseInt(dataFech.slice(0, 4), 10) : null;
+    const mesFechNum = r.mes_fechamento_numero   // calculado pela nova view
+      ?? (dataFech ? parseInt(dataFech.slice(5, 7), 10) : null);
+    const anoFech = dataFech ? parseInt(dataFech.slice(0, 4), 10) : null;
+
+    const qtdFunc = r.quantidade_funcionarios ?? null;
 
     // Curva ABC — mesma lógica do pipeline.py
     let curva = 'Sem classificação';
@@ -65,7 +74,11 @@ window.SSO_SUPABASE = (() => {
       mes_nome               : mesNum ? (Engine.MES_NOME || {})[mesNum] : '',
       ano                    : r.ano_referencia
                                || (r.data_referencia ? parseInt(r.data_referencia.slice(0, 4), 10) : null),
-      // Campos de fechamento (para Engine separar data de venda)
+      // Campos de ENVIO (propostas)
+      data_envio_orcamento   : r.data_envio_orcamento || null,
+      mes_envio_numero       : mesEnvioNum,
+      ano_envio              : anoEnvio,
+      // Campos de FECHAMENTO (vendas)
       data_fechamento        : dataFech,
       mes_fechamento_numero  : mesFechNum,
       ano_fechamento         : anoFech,
