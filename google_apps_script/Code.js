@@ -461,21 +461,66 @@ function formatDateISO(date) {
 }
 
 function parseValorMensal(raw) {
-  if (!raw) return null;
+  if (raw === null || raw === undefined || raw === "") return null;
+
+  // Google Sheets getValues() pode retornar número nativo (float) ou string formatada
+  if (typeof raw === "number") {
+    return isNaN(raw) ? null : raw;
+  }
+
   const s = String(raw).trim().toUpperCase();
+  if (s === "") return null;
   if (s.indexOf("A VISTA") !== -1 || s.indexOf("À VISTA") !== -1) return 0.0;
   if (s.indexOf("#DIV") !== -1 || s.indexOf("#VALUE") !== -1
       || s === "X" || s === "-") return null;
-  const num = parseFloat(s.replace(/R\$\s*/g, "").replace(/\./g, "").replace(",", "."));
+
+  // Remover símbolo de moeda e espaços
+  let cleaned = s.replace(/R\$\s*/g, "").trim();
+
+  // Detectar formato brasileiro: ponto como separador de milhar, vírgula como decimal
+  // Ex: "14.363,34" ou "1.358.023,23" ou "8.800,00"
+  // Formato americano: ponto como decimal, sem vírgula de milhar
+  const hasBrFormat = /^[\d\.]+,[\d]{2}$/.test(cleaned) ||
+                      /^[\d]{1,3}(\.[\d]{3})+,[\d]{2}$/.test(cleaned);
+
+  if (hasBrFormat) {
+    // Formato BR: remover pontos de milhar, trocar vírgula por ponto decimal
+    cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+  } else {
+    // Formato americano ou número puro: remover apenas vírgulas de milhar
+    cleaned = cleaned.replace(/,/g, "");
+  }
+
+  const num = parseFloat(cleaned);
   return isNaN(num) ? null : num;
 }
 
 function parseValorTotal(raw) {
-  if (!raw) return null;
+  if (raw === null || raw === undefined || raw === "") return null;
+
+  // Google Sheets getValues() pode retornar número nativo (float) ou string formatada
+  if (typeof raw === "number") {
+    return isNaN(raw) ? null : raw;
+  }
+
   const s = String(raw).trim().toUpperCase();
+  if (s === "") return null;
   if (s.indexOf("#DIV") !== -1 || s.indexOf("#VALUE") !== -1
       || s === "X" || s === "À DEFINIR" || s === "A DEFINIR" || s === "-") return null;
-  const num = parseFloat(s.replace(/R\$\s*/g, "").replace(/\./g, "").replace(",", "."));
+
+  let cleaned = s.replace(/R\$\s*/g, "").trim();
+
+  // Detectar formato brasileiro: ponto como separador de milhar, vírgula como decimal
+  const hasBrFormat = /^[\d\.]+,[\d]{2}$/.test(cleaned) ||
+                      /^[\d]{1,3}(\.[\d]{3})+,[\d]{2}$/.test(cleaned);
+
+  if (hasBrFormat) {
+    cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+  } else {
+    cleaned = cleaned.replace(/,/g, "");
+  }
+
+  const num = parseFloat(cleaned);
   return isNaN(num) ? null : num;
 }
 
