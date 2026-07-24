@@ -250,6 +250,18 @@ serve(async (req) => {
         continue;
       }
 
+      // Guarda de sanidade: não sobrescrever valor_total com valor claramente errado
+      // (mais de 500.000 reais num único contrato é improvável para SSO)
+      const valorAtual = (existing as any).valor_total as number | null;
+      const valorNovo  = r.valor_total as number | null;
+      const valorSuspeito = valorNovo !== null && valorNovo > 500000;
+      // Se o valor novo é suspeito e o existente já é razoável, manter o existente
+      if (valorSuspeito) {
+        skipped++;
+        console.warn(`[sync-sheets] Valor suspeito ignorado: source_record_id=${sourceRecordId} valor=${valorNovo}`);
+        continue;
+      }
+
       // Atualizar (inclui reativação se is_active=false)
       const { error: updateErr } = await supabase
         .from(TABLE)
@@ -341,8 +353,12 @@ serve(async (req) => {
     }
   }
 
-  // ── Reconciliação: inativar registros que sumiram da planilha ──────────
+  // ── Reconciliação: inativar registros que sumiram da planilha ───────────
   let inactivated = 0;
+
+  // Regex para detectar UUID padrão (v4) — IDs gerados pelo Apps Script
+  // Registros com IDs não-UUID são inserções manuais e NÃO devem ser inativados
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   if (seenSourceIds.size > 0) {
     const { data: activeRecords } = await supabase
@@ -354,7 +370,9 @@ serve(async (req) => {
 
     if (activeRecords && activeRecords.length > 0) {
       const toInactivate = activeRecords.filter(
-        (rec: { source_record_id: string }) => !seenSourceIds.has(rec.source_record_id)
+        (rec: { source_record_id: string }) =>
+          !seenSourceIds.has(rec.source_record_id) &&
+          UUID_REGEX.test(rec.source_record_id)  // apenas inativar registros com ID gerado pelo Apps Script
       );
 
       for (const rec of toInactivate) {
