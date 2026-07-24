@@ -226,28 +226,104 @@ const Charts = (() => {
     clearOverlay('chart-vendedores');
     if (!vendData.length) { noDataOverlay('chart-vendedores'); return; }
     destroy('chart-vendedores');
+
     const sorted = [...vendData].sort((a, b) => b[metric] - a[metric]);
-    const ctx = document.getElementById('chart-vendedores').getContext('2d');
-    const isMoney = metric === 'fatVendas' || metric === 'prevFat';
-    const isPct = metric === 'conversao';
+    const n      = sorted.length;
+
+    // ── Altura dinâmica: mínimo 300px, ~52px por vendedor ────────────────
+    const PX_PER_VENDOR = 52;
+    const MIN_H         = 300;
+    const dynH          = Math.max(MIN_H, n * PX_PER_VENDOR);
+
+    // Atualizar o container para acompanhar a altura calculada
+    const canvas = document.getElementById('chart-vendedores');
+    const wrap   = canvas ? canvas.parentElement : null;
+    if (wrap) {
+      wrap.style.height  = dynH + 'px';
+      wrap.style.overflow = 'visible';  // não cortar nomes/barras/tooltips
+    }
+
+    // ── Margem esquerda responsiva ao maior nome ──────────────────────────
+    // Usa canvas temporário para medir texto
+    const longestName = sorted.reduce((acc, d) => d.vendedor.length > acc.length ? d.vendedor : acc, '');
+    let leftMargin = 90;
+    try {
+      const tmpCtx = document.createElement('canvas').getContext('2d');
+      tmpCtx.font  = '11px Inter, system-ui, sans-serif';
+      const measured = tmpCtx.measureText(longestName).width;
+      leftMargin = Math.min(160, Math.max(90, Math.ceil(measured) + 16));
+    } catch (_) { /* fallback já está definido */ }
+
+    const ctx      = document.getElementById('chart-vendedores').getContext('2d');
+    const isMoney  = metric === 'fatVendas' || metric === 'prevFat';
+    const isPct    = metric === 'conversao';
+
     instances['chart-vendedores'] = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: sorted.map(d => d.vendedor),
-        datasets: [{ data: sorted.map(d => d[metric]), backgroundColor: sorted.map((_, i) => PALETTE[i % PALETTE.length] + 'CC'), borderRadius: 4, barThickness: 16 }],
+        labels  : sorted.map(d => d.vendedor),
+        datasets: [{
+          data           : sorted.map(d => d[metric]),
+          backgroundColor: sorted.map((_, i) => PALETTE[i % PALETTE.length] + 'CC'),
+          borderRadius   : 4,
+          // barThickness calculada para preencher bem o espaço por vendedor
+          barThickness   : Math.max(14, Math.min(28, Math.floor((dynH - 40) / n) - 12)),
+        }],
       },
       options: {
-        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        indexAxis       : 'y',
+        responsive      : true,
+        maintainAspectRatio: false,
+        layout: {
+          // Padding esquerdo garante que nomes longos não são cortados
+          padding: { left: 0, right: 12, top: 4, bottom: 4 },
+        },
         plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: c => {
-            const d = sorted[c.dataIndex];
-            return [` Leads: ${d.leads.toLocaleString('pt-BR')}`, ` Propostas: ${d.propostas.toLocaleString('pt-BR')}`, ` Vendas: ${d.vendas.toLocaleString('pt-BR')}`, ` Conversao: ${d.conversao.toFixed(1).replace('.', ',')}%`, ` Previsao: ${fmtBRL(d.prevFat)}`, ` Fat. Realizado: ${fmtBRL(d.fatVendas)}`];
-          }}},
+          legend : { display: false },
+          tooltip: {
+            callbacks: {
+              label: c => {
+                const d = sorted[c.dataIndex];
+                return [
+                  ` Leads: ${d.leads.toLocaleString('pt-BR')}`,
+                  ` Propostas: ${d.propostas.toLocaleString('pt-BR')}`,
+                  ` Vendas: ${d.vendas.toLocaleString('pt-BR')}`,
+                  ` Conversão: ${d.conversao.toFixed(1).replace('.', ',')}%`,
+                  ` Previsão: ${fmtBRL(d.prevFat)}`,
+                  ` Fat. Realizado: ${fmtBRL(d.fatVendas)}`,
+                ];
+              },
+            },
+          },
         },
         scales: {
-          x: { ...BASE_OPTS.scales.x, beginAtZero: true, ticks: { ...BASE_OPTS.scales.x.ticks, callback: v => isMoney ? fmtBRL(v) : isPct ? v.toFixed(1).replace('.', ',') + '%' : v.toLocaleString('pt-BR') } },
-          y: { ...BASE_OPTS.scales.y, ticks: { font: { ...BASE_FONT, size: 11 }, color: '#475467' } },
+          x: {
+            ...BASE_OPTS.scales.x,
+            beginAtZero: true,
+            ticks: {
+              ...BASE_OPTS.scales.x.ticks,
+              maxRotation: 0,
+              callback: v => isMoney ? fmtBRL(v) : isPct ? v.toFixed(1).replace('.', ',') + '%' : v.toLocaleString('pt-BR'),
+            },
+          },
+          y: {
+            ...BASE_OPTS.scales.y,
+            ticks: {
+              font      : { ...BASE_FONT, size: 11 },
+              color     : '#475467',
+              padding   : 6,
+              // ─── CORREÇÃO PRINCIPAL ───────────────────────────────────
+              // Desabilitar skip automático de labels: garante que TODOS os
+              // vendedores apareçam no eixo Y, independente da altura
+              autoSkip      : false,
+              maxTicksLimit : 9999,
+              // ─────────────────────────────────────────────────────────
+            },
+            afterFit: (axis) => {
+              // Forçar margem esquerda suficiente para o maior nome
+              axis.width = leftMargin;
+            },
+          },
         },
       },
     });

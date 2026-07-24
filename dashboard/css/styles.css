@@ -192,6 +192,8 @@ table { border-collapse: collapse; width: 100%; }
 .chart-title { font-size: 13px; font-weight: 600; color: var(--graphite); }
 .chart-sub { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
 .chart-canvas-wrap { position: relative; flex: 1; min-height: 0; }
+/* Gráfico de vendedores: overflow visível para não cortar labels/tooltips */
+#wrap-vendedores { overflow: visible !important; flex: none; }
 canvas { max-width: 100%; }
 
 /* Metric selector */
