@@ -113,9 +113,13 @@ window.SSO_SUPABASE = (() => {
         const st = (r.status || '').trim().toUpperCase();
         if (st === 'CONTRATO FECHADO'
             && r.data_fechamento && r.data_fechamento >= CORTE_DATA) return true;
+        // Condição C: proposta enviada em julho+ com oportunidade de mês anterior
+        // (orçamento enviado em julho para lead captado antes)
+        if (r.data_envio_orcamento && r.data_envio_orcamento >= CORTE_DATA) return true;
         return false;
       })
       .map(normalizarRegistroLive);
+
   }
 
   // ── Disparar sincronização (Edge Function) ───────────────────────────

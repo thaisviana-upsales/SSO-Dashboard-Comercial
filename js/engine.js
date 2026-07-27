@@ -24,13 +24,73 @@
  *     - kpis.leads     ← mes_numero == M (ou fallback)
  *     - kpis.propostas ← mes_envio_numero == M (ou fallback)
  *     - kpis.vendas    ← mes_fechamento_numero == M (ou fallback)
+ *
+ * CONVERSÃO:
+ *   conversao = vendas / leads   (NÃO vendas/propostas)
+ *   O denominador é sempre o card "Leads/Oportunidades".
  */
+
+/**
+ * toCanonicalNumber — converte qualquer valor de origem para número JS.
+ *
+ * Supabase retorna colunas NUMERIC como:
+ *   - número JS (ex: 3050, 35337.6)
+ *   - string canônica (ex: "3050.00", "35337.60")
+ *
+ * NÃO usar replace(/\./g,'') sobre strings canônicas do Supabase,
+ * pois isso converte "3050.00" → 305000 (multiplicação por 100).
+ *
+ * parsePtBrCurrency é chamado SOMENTE quando a string tem formato BR
+ * explícito (vírgula decimal + ponto de milhar, ex: "R$ 3.050,00").
+ */
+function toCanonicalNumber(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const text = String(value).trim();
+  // Formato canônico do Supabase: somente dígitos e ponto decimal
+  if (/^-?\d+(\.\d+)?$/.test(text)) return Number(text);
+  // Formato BR explícito (com R$, vírgula decimal, ponto de milhar)
+  return parsePtBrCurrency(text);
+}
+
+function parsePtBrCurrency(value) {
+  const text = String(value || '')
+    .replace(/R\$\s*/gi, '')
+    .replace(/\./g, '')      // remove ponto de milhar
+    .replace(',', '.')       // vírgula vira ponto decimal
+    .trim();
+  const n = Number(text);
+  return Number.isFinite(n) ? n : 0;
+}
+
 const Engine = (() => {
 
   // ── Helpers ────────────────────────────────────────────────────────────
   const normStatus  = s => (s || '').trim().toUpperCase();
   const temContrato = r => !!(r.tipo_contrato && r.tipo_contrato.trim());
-  const valorValido = r => r.valor_total !== null && r.valor_total !== undefined && !r.flag_valor_invalido;
+
+  /**
+   * valorValido — retorna true somente para valores que podem ser somados.
+   *
+   * Rejeita:
+   *   - null / undefined / flag_valor_invalido = true
+   *   - valores inflados: valor_total > valor_mensal × 60 (5 anos)
+   *     Isso detecta células de planilha com fórmulas erradas.
+   *     Ex: vm=419.95, vt=50394 (= vm × 120) → INFLADO, rejeitado.
+   *
+   * Não usa SUM(DISTINCT valor_total) — deduplicação é feita pela chave.
+   */
+  function valorValido(r) {
+    if (r.valor_total === null || r.valor_total === undefined) return false;
+    if (r.flag_valor_invalido) return false;
+    const vt = toCanonicalNumber(r.valor_total);
+    // Sanity check: valor_total não pode ser > valor_mensal × 60 (5 anos)
+    if (r.valor_mensal !== null && r.valor_mensal !== undefined) {
+      const vm = toCanonicalNumber(r.valor_mensal);
+      if (vm > 0 && vt > vm * 60) return false; // inflado
+    }
+    return true;
+  }
 
   /**
    * Mês do FECHAMENTO da venda:
@@ -219,7 +279,7 @@ const Engine = (() => {
       }
     }
 
-    const conversao = propostas > 0 ? (vendas / propostas) * 100 : 0;
+    const conversao = leads > 0 ? (vendas / leads) * 100 : 0;
     return { leads, propostas, vendas, abertas, recusadas, prevFat, fatVendas, conversao };
   }
 
