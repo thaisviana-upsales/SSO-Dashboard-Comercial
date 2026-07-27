@@ -188,18 +188,23 @@ const Engine = (() => {
       if (f.status?.length   && !f.status.includes(normStatus(r.status)))  return false;
       if (f.tipo?.length     && !f.tipo.includes(r.tipo_contrato))         return false;
       
-      // Filtro de data exato (dateStart/dateEnd) usa data_referencia para oportunidade
+      // Filtro de data exato (dateStart/dateEnd)
+      // Regra: um registro passa se QUALQUER evento tiver data dentro do intervalo:
+      //   oportunidade → data_referencia
+      //   proposta     → data_envio_orcamento
+      //   venda        → data_fechamento (somente CONTRATO FECHADO)
       if (f.dateStart || f.dateEnd) {
-        const dr = r.data_referencia;
-        if (!dr) {
-          const alt = r.data_envio_orcamento || r.data_fechamento;
-          if (!alt) return false;
-          if (f.dateStart && alt < f.dateStart) return false;
-          if (f.dateEnd   && alt > f.dateEnd)   return false;
-        } else {
-          if (f.dateStart && dr < f.dateStart) return false;
-          if (f.dateEnd   && dr > f.dateEnd)   return false;
-        }
+        const inRange = d => {
+          if (!d) return false;
+          if (f.dateStart && d < f.dateStart) return false;
+          if (f.dateEnd   && d > f.dateEnd)   return false;
+          return true;
+        };
+        const stD         = normStatus(r.status);
+        const drInRange    = inRange(r.data_referencia);
+        const envioInRange = inRange(r.data_envio_orcamento);
+        const fechInRange  = stD === 'CONTRATO FECHADO' && inRange(r.data_fechamento);
+        if (!drInRange && !envioInRange && !fechInRange) return false;
       }
       return true;
     });
@@ -240,18 +245,22 @@ const Engine = (() => {
     for (const r of records) {
       const st = normStatus(r.status);
 
-      // ─ LEAD: contar pelo mês da oportunidade (data_referencia) ────────────
-      const mOpp = mesOportunidade(r);
-      const isFallbackLead = r.source_type === 'EXCEL_HISTORICO'
-                             || (!r.data_envio_orcamento && !r.data_fechamento);
-      const leadNoMes = !months?.length
-        || (isFallbackLead ? months.includes(mOpp) : mOpp !== null && months.includes(mOpp));
-      if (leadNoMes) {
-        leads++;
-      }
+      // Registros históricos (EXCEL_HISTORICO) ou sem datas comerciais:
+      // usam data_referencia como fallback para todos os eventos.
+      // GOOGLE_SHEETS_LIVE: cada evento usa exclusivamente seu próprio campo de data.
+      const isHistoricoR = r.source_type === 'EXCEL_HISTORICO'
+                           || (!r.data_envio_orcamento && !r.data_fechamento);
 
-      // ─ PROPOSTA: contar pelo mês do envio do orçamento ─────────────────
-      const mEnv = mesEnvio(r);
+      // ─ LEAD: contar pelo mês da oportunidade (data_referencia) ─────────
+      const mOpp = mesOportunidade(r);
+      const leadNoMes = !months?.length
+        || (isHistoricoR ? months.includes(mOpp) : mOpp !== null && months.includes(mOpp));
+      if (leadNoMes) leads++;
+
+      // ─ PROPOSTA: contar pelo mês do envio do orçamento ──────────────────
+      // GOOGLE_SHEETS_LIVE → mes_envio_numero exclusivo (sem fallback para mes_numero)
+      // EXCEL_HISTORICO    → mesEnvio() com fallback
+      const mEnv = isHistoricoR ? mesEnvio(r) : (r.mes_envio_numero ?? null);
       const propostaNoMes = !months?.length
         || (mEnv !== null && months.includes(mEnv));
       if (propostaNoMes && temContrato(r)) {
@@ -259,13 +268,11 @@ const Engine = (() => {
         if (valorValido(r)) prevFat += r.valor_total;
       }
 
-      // ─ STATUS (abertas / recusadas) ───────────────────────────────
-      if (st === 'PROPOSTA ENVIADA') abertas++;
-      else if (st === 'RECUSADO')    recusadas++;
-
-      // ─ VENDA: contar pelo mês do fechamento (data_fechamento) ──────────
+      // ─ VENDA + ABERTAS + RECUSADAS (contados UMA única vez) ─────────────
+      // GOOGLE_SHEETS_LIVE → mes_fechamento_numero exclusivo (sem fallback)
+      // EXCEL_HISTORICO    → mesFechamento() com fallback
       if (st === 'CONTRATO FECHADO') {
-        const mFech = mesFechamento(r);
+        const mFech = isHistoricoR ? mesFechamento(r) : (r.mes_fechamento_numero ?? null);
         const vendaNoFiltro = !months?.length
           || (mFech !== null && months.includes(mFech));
         if (vendaNoFiltro) {
@@ -566,21 +573,24 @@ const Engine = (() => {
 
     return CURVAS_ORDEM.map(curva => {
       const regs = map[curva];
-      let propostas = 0, vendas = 0, prevFat = 0, fatVendas = 0, vendasComValor = 0;
+      // leads = todos os registros da curva (denominador oficial de conversão)
+      let leads = 0, propostas = 0, vendas = 0, prevFat = 0, fatVendas = 0, vendasComValor = 0;
       for (const r of regs) {
+        leads++;
         if (temContrato(r)) { propostas++; if (valorValido(r)) prevFat += r.valor_total; }
         if (normStatus(r.status) === 'CONTRATO FECHADO') {
           vendas++;
           if (valorValido(r)) { fatVendas += r.valor_total; vendasComValor++; }
         }
       }
-      const conversao = propostas > 0 ? vendas / propostas * 100 : 0;
+      // Conversão oficial: vendas / leads (não vendas / propostas)
+      const conversao = leads > 0 ? vendas / leads * 100 : 0;
       const ticketMedio = vendasComValor > 0 ? fatVendas / vendasComValor : null;
       const participacaoFat    = totalFat    > 0 ? fatVendas / totalFat    * 100 : 0;
       const participacaoVendas = totalVendas > 0 ? vendas    / totalVendas * 100 : 0;
       return {
         curva, faixa: CURVAS_FAIXAS[curva], cor: CURVAS_CORES[curva],
-        registros: regs.length, propostas, vendas, conversao,
+        registros: regs.length, leads, propostas, vendas, conversao,
         prevFat, fatVendas, ticketMedio,
         vendasSemValor: vendas - vendasComValor,
         participacaoFat, participacaoVendas,
@@ -596,8 +606,9 @@ const Engine = (() => {
       const rk = (rowField === 'curva_abc_cliente' ? r.curva_abc_cliente : r[rowField]) || '(sem)';
       const cv = r.curva_abc_cliente || 'Sem classificação';
       if (!rowMap[rk]) rowMap[rk] = {};
-      if (!rowMap[rk][cv]) rowMap[rk][cv] = { propostas: 0, vendas: 0, fatVendas: 0, prevFat: 0, vcv: 0 };
+      if (!rowMap[rk][cv]) rowMap[rk][cv] = { leads: 0, propostas: 0, vendas: 0, fatVendas: 0, prevFat: 0, vcv: 0 };
       const c = rowMap[rk][cv];
+      c.leads++;  // todo registro = 1 lead
       if (temContrato(r)) { c.propostas++; if (valorValido(r)) c.prevFat += r.valor_total; }
       if (normStatus(r.status) === 'CONTRATO FECHADO') {
         c.vendas++;
@@ -606,14 +617,15 @@ const Engine = (() => {
     }
     const result = Object.entries(rowMap).map(([row, cm]) => {
       const cells = {};
-      let rp = 0, rv = 0, rf = 0;
+      let rl = 0, rp = 0, rv = 0, rf = 0;
       for (const cv of CURVAS) {
-        const d = cm[cv] || { propostas: 0, vendas: 0, fatVendas: 0, prevFat: 0, vcv: 0 };
-        cells[cv] = { ...d, conversao: d.propostas > 0 ? d.vendas / d.propostas * 100 : 0, ticketMedio: d.vcv > 0 ? d.fatVendas / d.vcv : null };
-        rp += d.propostas; rv += d.vendas; rf += d.fatVendas;
+        const d = cm[cv] || { leads: 0, propostas: 0, vendas: 0, fatVendas: 0, prevFat: 0, vcv: 0 };
+        // Conversão oficial: vendas / leads (não vendas / propostas)
+        cells[cv] = { ...d, conversao: d.leads > 0 ? d.vendas / d.leads * 100 : 0, ticketMedio: d.vcv > 0 ? d.fatVendas / d.vcv : null };
+        rl += d.leads; rp += d.propostas; rv += d.vendas; rf += d.fatVendas;
       }
-      const rConv = rp > 0 ? rv / rp * 100 : 0;
-      return { row, cells, totals: { propostas: rp, vendas: rv, fatVendas: rf, conversao: rConv } };
+      const rConv = rl > 0 ? rv / rl * 100 : 0;
+      return { row, cells, totals: { leads: rl, propostas: rp, vendas: rv, fatVendas: rf, conversao: rConv } };
     });
     result.sort((a, b) => b.totals.propostas - a.totals.propostas);
     return { rows: result, curvas: CURVAS };
