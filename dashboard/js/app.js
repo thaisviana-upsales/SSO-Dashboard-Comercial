@@ -44,11 +44,11 @@
 
   // ── KPIs ──────────────────────────────────────────────────────────────
   function renderKPIs() {
-    const k = Engine.kpis(filtered, state.months);
+    const k = Engine.kpis(filtered, state.months, state.dateStart, state.dateEnd);
 
-    // Comparação com período anterior (quando 1 mês selecionado)
+    // Comparação com período anterior (quando 1 mês selecionado, sem filtro de data)
     let prev = null;
-    if (state.months.length === 1) {
+    if (state.months.length === 1 && !state.dateStart) {
       const m = state.months[0];
       const prevMonth = m - 1;
       if (prevMonth >= 1) {
@@ -65,9 +65,17 @@
     setKPI('conversao', fmtPct(k.conversao), k, prev, 'conversao', false);
 
     // Período label
-    const labels = state.months.length === 0
-      ? 'Jan a Jul 2026 — periodo completo'
-      : state.months.map(m => Engine.MES_NOME_FULL[m]).join(', ') + ' 2026';
+    const fmtBRd = d => d ? d.split('-').reverse().join('/') : '';
+    let labels;
+    if (state.dateStart) {
+      labels = state.dateEnd && state.dateEnd !== state.dateStart
+        ? `${fmtBRd(state.dateStart)} a ${fmtBRd(state.dateEnd)}`
+        : fmtBRd(state.dateStart);
+    } else {
+      labels = state.months.length === 0
+        ? 'Jan a Jul 2026 — periodo completo'
+        : state.months.map(m => Engine.MES_NOME_FULL[m]).join(', ') + ' 2026';
+    }
     $('cockpit-period').textContent = labels;
   }
 
@@ -89,7 +97,7 @@
   // ── Gráficos ──────────────────────────────────────────────────────────
   function renderCharts() {
     const allMonths = state.months.length ? state.months : Engine.ALL_MONTHS;
-    const monthData = Engine.byMonth(filtered, allMonths);
+    const monthData = Engine.byMonth(filtered, allMonths, state.dateStart, state.dateEnd);
     Charts.renderVolume(monthData);
     Charts.renderFinancial(monthData);
 
@@ -97,7 +105,7 @@
     const total = filtered.length;
     Charts.renderDonut(statusData, total);
 
-    const tiposData = Engine.byTipoContrato(filtered, state.months);
+    const tiposData = Engine.byTipoContrato(filtered, state.months, state.dateStart, state.dateEnd);
     Charts.renderTipos(tiposData, tipo => {
       state.tipo = tipo;
       $('sel-tipo').value = tipo;
@@ -105,13 +113,13 @@
       updateChips();
     });
 
-    Charts.renderFonte(Engine.byFonte(filtered, state.months));
-    Charts.renderVendedores(Engine.byVendedor(filtered, state.months), state.vendedorMetric);
+    Charts.renderFonte(Engine.byFonte(filtered, state.months, state.dateStart, state.dateEnd));
+    Charts.renderVendedores(Engine.byVendedor(filtered, state.months, state.dateStart, state.dateEnd), state.vendedorMetric);
   }
 
   // ── Tabela ────────────────────────────────────────────────────────────
   function renderTable() {
-    const data = Engine.byVendedor(filtered, state.months);
+    const data = Engine.byVendedor(filtered, state.months, state.dateStart, state.dateEnd);
     const { col, asc } = state.tableSort;
 
     data.sort((a, b) => {
@@ -142,7 +150,7 @@
         <td>${fmtBRL(d.fatVendas)}</td>
       </tr>`).join('');
 
-    const tot = Engine.kpis(filtered, state.months);
+    const tot = Engine.kpis(filtered, state.months, state.dateStart, state.dateEnd);
     $('table-foot').innerHTML = `<tr>
       <td>Total</td>
       <td>${fmtNum(tot.leads)}</td>
@@ -298,6 +306,11 @@
           if (idx >= 0) state.months.splice(idx, 1); else state.months.push(m);
           state.months.sort((a, b) => a - b);
         }
+        // Exclusão mútua: clicar em mês limpa o filtro de data específica
+        state.dateStart = null;
+        state.dateEnd   = null;
+        if (window._mainDP) window._mainDP.clear();
+        document.getElementById('dp-hist-warning')?.classList.remove('visible');
         syncMonthPills();
         applyFilters();
         updateChips();
@@ -417,7 +430,12 @@
           placeholder: 'Data específica',
           onApply: function (start, end) {
             state.dateStart = start;
-            state.dateEnd = end || start;
+            state.dateEnd   = end || start;
+            // Exclusão mútua: aplicar data limpa os filtros de mês
+            if (start) {
+              state.months = [];
+              syncMonthPills();
+            }
             const warn = document.getElementById('dp-hist-warning');
             if (warn) warn.classList.toggle('visible', !!(start && start < '2026-07-01' && (!end || end < '2026-07-01')));
             applyFilters();

@@ -353,13 +353,11 @@ serve(async (req) => {
     }
   }
 
-  // ── Reconciliação: inativar registros que sumiram da planilha ───────────
+  // Reconciliar TODOS os registros ativos que não foram vistos no sync atual,
+  // independentemente do formato do source_record_id (UUID ou string manual).
+  // Após a migration de limpeza, apenas IDs estáveis gerados pelo Apps Script
+  // devem existir — não há mais razão para proteger strings manuais.
   let inactivated = 0;
-
-  // Regex para detectar UUID padrão (v4) — IDs gerados pelo Apps Script
-  // Registros com IDs não-UUID são inserções manuais e NÃO devem ser inativados
-  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
   if (seenSourceIds.size > 0) {
     const { data: activeRecords } = await supabase
       .from(TABLE)
@@ -371,9 +369,9 @@ serve(async (req) => {
     if (activeRecords && activeRecords.length > 0) {
       const toInactivate = activeRecords.filter(
         (rec: { source_record_id: string }) =>
-          !seenSourceIds.has(rec.source_record_id) &&
-          UUID_REGEX.test(rec.source_record_id)  // apenas inativar registros com ID gerado pelo Apps Script
+          !seenSourceIds.has(rec.source_record_id)
       );
+
 
       for (const rec of toInactivate) {
         const { error: inactErr } = await supabase

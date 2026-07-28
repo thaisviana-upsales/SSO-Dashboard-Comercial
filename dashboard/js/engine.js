@@ -238,51 +238,114 @@ const Engine = (() => {
    *   prevFat   → soma valor_total das propostas (mesmo conjunto de propostas)
    *   fatVendas → soma valor_total das vendas
    */
-  function kpis(records, months) {
+  function kpis(records, months, dateStart, dateEnd) {
     let leads = 0, propostas = 0, vendas = 0, abertas = 0, recusadas = 0;
     let prevFat = 0, fatVendas = 0;
 
+    // Conjuntos de deduplicação independentes por tipo de evento.
+    // Chave: source_record_id (estável e único por linha da planilha).
+    // Impede que duplicatas residuais no banco inflem qualquer indicador.
+    const seenOpp   = new Set();
+    const seenProp  = new Set();
+    const seenVenda = new Set();
+
+    // Filtro de data por campo de evento: lead→data_referencia,
+    //   proposta→data_envio_orcamento, venda→data_fechamento.
+    // Quando dateStart/dateEnd não definidos, retorna sempre true.
+    const inDateRange = (d) => {
+      if (!dateStart && !dateEnd) return true;
+      if (!d) return false;
+      if (dateStart && d < dateStart) return false;
+      if (dateEnd   && d > dateEnd)   return false;
+      return true;
+    };
+
     for (const r of records) {
-      const st = normStatus(r.status);
+      const st     = normStatus(r.status);
+      const isLive = r.source_type === 'GOOGLE_SHEETS_LIVE';
+      const key    = r.source_record_id
+        || `${r.source_sheet}|${r.data_referencia}|${r.data_fechamento}|${r.valor_total}`;
 
-      // Registros históricos (EXCEL_HISTORICO) ou sem datas comerciais:
-      // usam data_referencia como fallback para todos os eventos.
-      // GOOGLE_SHEETS_LIVE: cada evento usa exclusivamente seu próprio campo de data.
-      const isHistoricoR = r.source_type === 'EXCEL_HISTORICO'
-                           || (!r.data_envio_orcamento && !r.data_fechamento);
-
-      // ─ LEAD: contar pelo mês da oportunidade (data_referencia) ─────────
-      const mOpp = mesOportunidade(r);
-      const leadNoMes = !months?.length
-        || (isHistoricoR ? months.includes(mOpp) : mOpp !== null && months.includes(mOpp));
-      if (leadNoMes) leads++;
-
-      // ─ PROPOSTA: contar pelo mês do envio do orçamento ──────────────────
-      // GOOGLE_SHEETS_LIVE → mes_envio_numero exclusivo (sem fallback para mes_numero)
-      // EXCEL_HISTORICO    → mesEnvio() com fallback
-      const mEnv = isHistoricoR ? mesEnvio(r) : (r.mes_envio_numero ?? null);
-      const propostaNoMes = !months?.length
-        || (mEnv !== null && months.includes(mEnv));
-      if (propostaNoMes && temContrato(r)) {
-        propostas++;
-        if (valorValido(r)) prevFat += r.valor_total;
+      // ─── OPORTUNIDADE — exclusivamente por data_referencia (coluna B) ─────
+      // GOOGLE_SHEETS_LIVE: somente se data_referencia não é null (coluna B preenchida)
+      // EXCEL_HISTORICO:    usa mes_numero como único campo disponível
+      if (isLive) {
+        if (r.data_referencia) {
+          const mOpp = r.mes_numero ?? null;
+          const passMonth = !months?.length || (mOpp !== null && months.includes(mOpp));
+          const passDate  = inDateRange(r.data_referencia);
+          if (passMonth && passDate) {
+            if (!seenOpp.has(key)) { seenOpp.add(key); leads++; }
+          }
+        }
+        // data_referencia null (coluna B vazia) → zero oportunidades ✅
+      } else {
+        // EXCEL_HISTORICO: usa data_referencia como campo de data (único disponível)
+        const mOpp = r.mes_numero ?? null;
+        const passMonth = !months?.length || (mOpp !== null && months.includes(mOpp));
+        const passDate  = inDateRange(r.data_referencia);
+        if (passMonth && passDate) leads++;
       }
 
-      // ─ VENDA + ABERTAS + RECUSADAS (contados UMA única vez) ─────────────
-      // GOOGLE_SHEETS_LIVE → mes_fechamento_numero exclusivo (sem fallback)
-      // EXCEL_HISTORICO    → mesFechamento() com fallback
-      if (st === 'CONTRATO FECHADO') {
-        const mFech = isHistoricoR ? mesFechamento(r) : (r.mes_fechamento_numero ?? null);
-        const vendaNoFiltro = !months?.length
-          || (mFech !== null && months.includes(mFech));
-        if (vendaNoFiltro) {
-          vendas++;
-          if (valorValido(r)) fatVendas += r.valor_total;
+      // ─── PROPOSTA — exclusivamente por data_envio_orcamento ───────────────
+      // GOOGLE_SHEETS_LIVE: somente se data_envio_orcamento existe
+      // EXCEL_HISTORICO:    fallback data_referencia para filtro de data
+      if (isLive) {
+        if (r.data_envio_orcamento && temContrato(r)) {
+          const mEnv = r.mes_envio_numero ?? null;
+          const passMonth = !months?.length || (mEnv !== null && months.includes(mEnv));
+          const passDate  = inDateRange(r.data_envio_orcamento);
+          if (passMonth && passDate) {
+            if (!seenProp.has(key)) {
+              seenProp.add(key);
+              propostas++;
+              if (valorValido(r)) prevFat += r.valor_total;
+            }
+          }
         }
-      } else if (st === 'PROPOSTA ENVIADA') {
-        abertas++;
-      } else if (st === 'RECUSADO') {
-        recusadas++;
+      } else {
+        // EXCEL_HISTORICO
+        const mEnv = mesEnvio(r);
+        const passMonth = !months?.length || (mEnv !== null && months.includes(mEnv));
+        const passDate  = inDateRange(r.data_referencia); // fallback historico
+        if (passMonth && passDate && temContrato(r)) {
+          propostas++;
+          if (valorValido(r)) prevFat += r.valor_total;
+        }
+      }
+
+      // ─── STATUS (abertas / recusadas) ─────────────────────────────────────
+      if (st === 'PROPOSTA ENVIADA') abertas++;
+      else if (st === 'RECUSADO')    recusadas++;
+
+      // ─── VENDA + FATURAMENTO — exclusivamente por data_fechamento ─────────
+      // GOOGLE_SHEETS_LIVE: somente se data_fechamento existe (sem fallback)
+      //   CONTRATO FECHADO sem data_fechamento → venda não contada ✅
+      // EXCEL_HISTORICO: fallback data_referencia para filtro de data
+      if (st === 'CONTRATO FECHADO') {
+        if (isLive) {
+          if (r.data_fechamento) {
+            const mFech = r.mes_fechamento_numero ?? null;
+            const passMonth = !months?.length || (mFech !== null && months.includes(mFech));
+            const passDate  = inDateRange(r.data_fechamento);
+            if (passMonth && passDate) {
+              if (!seenVenda.has(key)) {
+                seenVenda.add(key);
+                vendas++;
+                if (valorValido(r)) fatVendas += r.valor_total;
+              }
+            }
+          }
+        } else {
+          // EXCEL_HISTORICO
+          const mFech = mesFechamento(r);
+          const passMonth = !months?.length || (mFech !== null && months.includes(mFech));
+          const passDate  = inDateRange(r.data_referencia); // fallback historico
+          if (passMonth && passDate) {
+            vendas++;
+            if (valorValido(r)) fatVendas += r.valor_total;
+          }
+        }
       }
     }
 
@@ -304,12 +367,9 @@ const Engine = (() => {
    * Resultado: cada mês exibe os leads criados naquele mês E as vendas
    * fechadas naquele mês (que podem ser de oportunidades de meses anteriores).
    */
-  function byMonth(records, monthsToShow = ALL_MONTHS) {
-    // Mapa por mês de OPORTUNIDADE (data_referencia / mes_numero)
-    const mapOpp = {};
-    // Mapa por mês de PROPOSTA (data_envio_orcamento / mes_envio_numero)
-    const mapProp = {};
-    // Mapa por mês de VENDA (data_fechamento / mes_fechamento_numero)
+  function byMonth(records, monthsToShow = ALL_MONTHS, dateStart, dateEnd) {
+    const mapOpp   = {};
+    const mapProp  = {};
     const mapVenda = {};
 
     for (const m of monthsToShow) {
@@ -317,6 +377,18 @@ const Engine = (() => {
       mapProp[m]  = { propostas: 0, prevFat: 0, abertas: 0, recusadas: 0 };
       mapVenda[m] = { vendas: 0, fatVendas: 0 };
     }
+
+    // Filtro de data por campo de evento (sem regressão quando não definido)
+    const inDateRange = (d) => {
+      if (!dateStart && !dateEnd) return true;
+      if (!d) return false;
+      if (dateStart && d < dateStart) return false;
+      if (dateEnd   && d > dateEnd)   return false;
+      return true;
+    };
+
+    // Conjunto de deduplicação de vendas
+    const seenVendaMonth = new Set();
 
     for (const r of records) {
       const st  = normStatus(r.status);
@@ -326,12 +398,14 @@ const Engine = (() => {
       // ─ Lead: conta pelo mes_numero (data_referencia) ─────────────────
       const mOpp = r.mes_numero ?? null;
       if (mOpp !== null && mapOpp[mOpp]) {
-        mapOpp[mOpp].leads++;
+        const dateField = isHistorico ? r.data_referencia : r.data_referencia;
+        if (inDateRange(dateField)) mapOpp[mOpp].leads++;
       }
 
       // ─ Proposta: conta pelo mes_envio_numero (data_envio_orcamento) ───
       const mEnv = isHistorico ? mOpp : (r.mes_envio_numero ?? null);
-      if (mEnv !== null && mapProp[mEnv] && temContrato(r)) {
+      const propostaDateField = isHistorico ? r.data_referencia : r.data_envio_orcamento;
+      if (mEnv !== null && mapProp[mEnv] && temContrato(r) && inDateRange(propostaDateField)) {
         mapProp[mEnv].propostas++;
         if (valorValido(r)) mapProp[mEnv].prevFat += r.valor_total;
       }
@@ -342,10 +416,21 @@ const Engine = (() => {
 
       // ─ Venda: conta pelo mes_fechamento_numero (data_fechamento) ──────
       if (st === 'CONTRATO FECHADO') {
-        const mV = isHistorico ? mOpp : mesFechamento(r);
-        if (mV !== null && mapVenda[mV]) {
-          mapVenda[mV].vendas++;
-          if (valorValido(r)) mapVenda[mV].fatVendas += r.valor_total;
+        const isLive = r.source_type === 'GOOGLE_SHEETS_LIVE';
+        const mV = isHistorico
+          ? mOpp
+          : (isLive
+              ? (r.data_fechamento ? (r.mes_fechamento_numero ?? null) : null)
+              : mesFechamento(r));
+        const vendaDateField = isHistorico ? r.data_referencia : r.data_fechamento;
+        if (mV !== null && mapVenda[mV] && inDateRange(vendaDateField)) {
+          const vendaKey = r.source_record_id
+            || `${r.source_sheet}|${r.data_fechamento}|${r.valor_total}`;
+          if (!seenVendaMonth.has(vendaKey)) {
+            seenVendaMonth.add(vendaKey);
+            mapVenda[mV].vendas++;
+            if (valorValido(r)) mapVenda[mV].fatVendas += r.valor_total;
+          }
         }
       }
     }
@@ -395,8 +480,18 @@ const Engine = (() => {
    *
    * months: array de meses selecionados. [] ou undefined = todos.
    */
-  function byTipoContrato(records, months) {
+  function byTipoContrato(records, months, dateStart, dateEnd) {
     const map = {};
+    // Filtro de data por campo de evento (sem regressão quando não definido)
+    const inDateRange = (d) => {
+      if (!dateStart && !dateEnd) return true;
+      if (!d) return false;
+      if (dateStart && d < dateStart) return false;
+      if (dateEnd   && d > dateEnd)   return false;
+      return true;
+    };
+    // Dedup de vendas: evita contar o mesmo row físico 2× (proteção contra IDs instáveis)
+    const seenVendaTipo = new Set();
     for (const r of records) {
       if (!temContrato(r)) continue;
       const tipo = r.tipo_contrato.trim();
@@ -408,27 +503,36 @@ const Engine = (() => {
 
       // Lead pelo mes_numero
       const mOpp = r.mes_numero ?? null;
-      const leadNoMes = !months?.length
-        || (mOpp !== null && months.includes(mOpp));
-      if (leadNoMes) d.leads++;
+      const leadNoMes = !months?.length || (mOpp !== null && months.includes(mOpp));
+      if (leadNoMes && inDateRange(r.data_referencia)) d.leads++;
 
       // Proposta pelo mes_envio_numero (ou fallback mes_numero no histórico)
       const mEnv = isHistorico ? mOpp : (r.mes_envio_numero ?? null);
-      const propostaNoMes = !months?.length
-        || (mEnv !== null && months.includes(mEnv));
-      if (propostaNoMes) {
+      const propostaNoMes = !months?.length || (mEnv !== null && months.includes(mEnv));
+      const propDateField  = isHistorico ? r.data_referencia : r.data_envio_orcamento;
+      if (propostaNoMes && inDateRange(propDateField)) {
         d.propostas++;
         if (valorValido(r)) d.prevFat += r.valor_total;
       }
 
-      // Venda pelo mes_fechamento_numero (ou fallback mes_numero no histórico)
+      // Venda pelo mes_fechamento_numero
       if (st === 'CONTRATO FECHADO') {
-        const mFech = isHistorico ? mOpp : mesFechamento(r);
-        const vendaNoMes = !months?.length
-          || (mFech !== null && months.includes(mFech));
-        if (vendaNoMes) {
-          d.vendas++;
-          if (valorValido(r)) d.fatVendas += r.valor_total;
+        const isLiveTipo = r.source_type === 'GOOGLE_SHEETS_LIVE';
+        const mFech = isHistorico
+          ? mOpp
+          : (isLiveTipo
+              ? (r.data_fechamento ? (r.mes_fechamento_numero ?? null) : null)
+              : mesFechamento(r));
+        const vendaNoMes  = !months?.length || (mFech !== null && months.includes(mFech));
+        const vendDateField = isHistorico ? r.data_referencia : r.data_fechamento;
+        if (vendaNoMes && inDateRange(vendDateField)) {
+          const vendaKey = r.source_record_id
+            || `${r.source_sheet}|${r.data_fechamento}|${r.valor_total}`;
+          if (!seenVendaTipo.has(vendaKey)) {
+            seenVendaTipo.add(vendaKey);
+            d.vendas++;
+            if (valorValido(r)) d.fatVendas += r.valor_total;
+          }
         }
       }
     }
@@ -441,8 +545,18 @@ const Engine = (() => {
   }
 
   // ── Por Fonte do Lead ───────────────────────────────────────────────
-  function byFonte(records, months) {
+  function byFonte(records, months, dateStart, dateEnd) {
     const map = {};
+    // Filtro de data por campo de evento (sem regressão quando não definido)
+    const inDateRange = (d) => {
+      if (!dateStart && !dateEnd) return true;
+      if (!d) return false;
+      if (dateStart && d < dateStart) return false;
+      if (dateEnd   && d > dateEnd)   return false;
+      return true;
+    };
+    // Dedup de vendas: evita contar o mesmo row físico 2× (proteção contra IDs instáveis)
+    const seenVendaFonte = new Set();
     for (const r of records) {
       const f = r.fonte_lead || '(sem fonte)';
       if (!map[f]) map[f] = { leads: 0, propostas: 0, vendas: 0, prevFat: 0, fatVendas: 0 };
@@ -453,27 +567,36 @@ const Engine = (() => {
 
       // Lead pelo mes_numero
       const mOpp = r.mes_numero ?? null;
-      const leadNoMes = !months?.length
-        || (mOpp !== null && months.includes(mOpp));
-      if (leadNoMes) d.leads++;
+      const leadNoMes = !months?.length || (mOpp !== null && months.includes(mOpp));
+      if (leadNoMes && inDateRange(r.data_referencia)) d.leads++;
 
       // Proposta pelo mes_envio_numero (ou fallback mes_numero no histórico)
       const mEnv = isHistorico ? mOpp : (r.mes_envio_numero ?? null);
-      const propostaNoMes = !months?.length
-        || (mEnv !== null && months.includes(mEnv));
-      if (propostaNoMes && temContrato(r)) {
+      const propostaNoMes = !months?.length || (mEnv !== null && months.includes(mEnv));
+      const propDateField  = isHistorico ? r.data_referencia : r.data_envio_orcamento;
+      if (propostaNoMes && inDateRange(propDateField) && temContrato(r)) {
         d.propostas++;
         if (valorValido(r)) d.prevFat += r.valor_total;
       }
 
-      // Venda pelo mes_fechamento_numero (ou fallback mes_numero no histórico)
+      // Venda pelo mes_fechamento_numero
       if (st === 'CONTRATO FECHADO') {
-        const mFech = isHistorico ? mOpp : mesFechamento(r);
-        const vendaNoMes = !months?.length
-          || (mFech !== null && months.includes(mFech));
-        if (vendaNoMes) {
-          d.vendas++;
-          if (valorValido(r)) d.fatVendas += r.valor_total;
+        const isLiveFonte = r.source_type === 'GOOGLE_SHEETS_LIVE';
+        const mFech = isHistorico
+          ? mOpp
+          : (isLiveFonte
+              ? (r.data_fechamento ? (r.mes_fechamento_numero ?? null) : null)
+              : mesFechamento(r));
+        const vendaNoMes  = !months?.length || (mFech !== null && months.includes(mFech));
+        const vendDateField = isHistorico ? r.data_referencia : r.data_fechamento;
+        if (vendaNoMes && inDateRange(vendDateField)) {
+          const vendaKey = r.source_record_id
+            || `${r.source_sheet}|${r.data_fechamento}|${r.valor_total}`;
+          if (!seenVendaFonte.has(vendaKey)) {
+            seenVendaFonte.add(vendaKey);
+            d.vendas++;
+            if (valorValido(r)) d.fatVendas += r.valor_total;
+          }
         }
       }
     }
@@ -492,8 +615,18 @@ const Engine = (() => {
    * - Vendas/faturamento: contados quando mes_fechamento_numero está no filtro
    *   (suporta registros de transição: opp de mês anterior fechada no mês filtrado)
    */
-  function byVendedor(records, months) {
+  function byVendedor(records, months, dateStart, dateEnd) {
     const map = {};
+    // Filtro de data por campo de evento (sem regressão quando não definido)
+    const inDateRange = (d) => {
+      if (!dateStart && !dateEnd) return true;
+      if (!d) return false;
+      if (dateStart && d < dateStart) return false;
+      if (dateEnd   && d > dateEnd)   return false;
+      return true;
+    };
+    // Dedup de vendas: evita contar o mesmo row físico 2× (proteção contra IDs instáveis)
+    const seenVendaVend = new Set();
     for (const r of records) {
       const v = r.vendedor || '(sem vendedor)';
       if (!map[v]) map[v] = { leads: 0, propostas: 0, vendas: 0, prevFat: 0, fatVendas: 0 };
@@ -504,29 +637,36 @@ const Engine = (() => {
 
       // Lead pelo mes_numero (data_referencia)
       const mOpp = r.mes_numero ?? null;
-      const leadNoMes = !months?.length
-        || (mOpp !== null && months.includes(mOpp));
-      if (leadNoMes) d.leads++;
+      const leadNoMes = !months?.length || (mOpp !== null && months.includes(mOpp));
+      if (leadNoMes && inDateRange(r.data_referencia)) d.leads++;
 
       // Proposta pelo mes_envio_numero (data_envio_orcamento)
-      // Fallback para mes_numero no histórico (EXCEL_HISTORICO)
       const mEnv = isHistorico ? mOpp : (r.mes_envio_numero ?? null);
-      const propostaNoMes = !months?.length
-        || (mEnv !== null && months.includes(mEnv));
-      if (propostaNoMes && temContrato(r)) {
+      const propostaNoMes = !months?.length || (mEnv !== null && months.includes(mEnv));
+      const propDateField  = isHistorico ? r.data_referencia : r.data_envio_orcamento;
+      if (propostaNoMes && inDateRange(propDateField) && temContrato(r)) {
         d.propostas++;
         if (valorValido(r)) d.prevFat += r.valor_total;
       }
 
       // Venda pelo mes_fechamento_numero (data_fechamento)
-      // Fallback para mes_numero no histórico
       if (st === 'CONTRATO FECHADO') {
-        const mFech = isHistorico ? mOpp : mesFechamento(r);
-        const vendaNoMes = !months?.length
-          || (mFech !== null && months.includes(mFech));
-        if (vendaNoMes) {
-          d.vendas++;
-          if (valorValido(r)) d.fatVendas += r.valor_total;
+        const isLiveVend = r.source_type === 'GOOGLE_SHEETS_LIVE';
+        const mFech = isHistorico
+          ? mOpp
+          : (isLiveVend
+              ? (r.data_fechamento ? (r.mes_fechamento_numero ?? null) : null)
+              : mesFechamento(r));
+        const vendaNoMes  = !months?.length || (mFech !== null && months.includes(mFech));
+        const vendDateField = isHistorico ? r.data_referencia : r.data_fechamento;
+        if (vendaNoMes && inDateRange(vendDateField)) {
+          const vendaKey = r.source_record_id
+            || `${r.source_sheet}|${r.data_fechamento}|${r.valor_total}`;
+          if (!seenVendaVend.has(vendaKey)) {
+            seenVendaVend.add(vendaKey);
+            d.vendas++;
+            if (valorValido(r)) d.fatVendas += r.valor_total;
+          }
         }
       }
     }

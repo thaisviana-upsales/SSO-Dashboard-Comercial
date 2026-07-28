@@ -305,21 +305,12 @@ function lerDadosSanitizados() {
         continue;
       }
 
-      // ── PASSO 6: ID_REGISTRO estável ────────────────────────────────────
-      // Prioridade 1: UUID já gravado na coluna ID_REGISTRO da planilha
-      // Prioridade 2: ID determinístico derivado de posição estável da linha
-      let recordId = (idColIdx < rowVals.length)
-        ? String(rowVals[idColIdx]).trim() : "";
-
-      const deterministicId = makeDeterministicId(
-        CONFIG.SPREADSHEET_ID, tabName, r + 1  // número real da linha (1-based)
-      );
-
-      if (!recordId || recordId === "undefined" || recordId === "null"
-          || recordId.length < 10) {
-        recordId = deterministicId;
-        try { sheet.getRange(r + 1, idColIdx + 1).setValue(recordId); } catch(_) {}
-      }
+      // ── PASSO 6: ID_REGISTRO sempre determinístico ───────────────────────
+      // Usa APENAS o ID baseado em posição (spreadsheet + aba + linha).
+      // Ignora qualquer UUID random que gerarIdsAusentes() possa ter gravado.
+      // Garante source_record_id estável e único por row em todos os syncs.
+      const recordId = makeDeterministicId(CONFIG.SPREADSHEET_ID, tabName, r + 1);
+      try { sheet.getRange(r + 1, idColIdx + 1).setValue(recordId); } catch(_) {}
 
       // ── PASSO 7: Row hash completo (todos os campos relevantes) ──────────
       // Qualquer mudança em qualquer campo dispara atualização no Supabase.
