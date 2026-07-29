@@ -164,5 +164,43 @@ window.SSO_SUPABASE = (() => {
     };
   }
 
-  return { dispararSync, recarregarDados, CORTE_DATA };
+  // ── Carregar metas do Supabase ──────────────────────────────────────
+  /**
+   * carregarMetas — busca todas as metas do ano na tabela metas_comerciais.
+   *
+   * Retorna array de objetos normalizados para o Goals engine:
+   *   { ano, mes, vendedor, meta_mensal, dias_uteis_mes, percentual_meta }
+   *
+   * vendedor = "GERAL" para meta global | nome em MAIÚSCULAS para consultor.
+   * Quando a tabela estiver vazia ou inacessível, retorna [] sem lançar erro.
+   */
+  async function carregarMetas(ano) {
+    const url = SUPABASE_URL
+      + '/rest/v1/metas_comerciais'
+      + '?select=ano,mes,vendedor,meta_mensal,dias_uteis_mes,percentual_meta'
+      + '&ano=eq.' + (ano || 2026)
+      + '&order=mes.asc,vendedor.asc';
+    try {
+      const resp = await fetch(url, { headers: AUTH_HEADERS });
+      if (!resp.ok) {
+        console.warn('[SSO] carregarMetas: erro HTTP', resp.status);
+        return [];
+      }
+      const data = await resp.json();
+      if (!Array.isArray(data)) return [];
+      return data.map(m => ({
+        ano            : m.ano,
+        mes            : m.mes,
+        vendedor       : String(m.vendedor || '').trim().toUpperCase(),
+        meta_mensal    : m.meta_mensal    != null ? Number(m.meta_mensal)     : null,
+        dias_uteis_mes : m.dias_uteis_mes != null ? Number(m.dias_uteis_mes)  : null,
+        percentual_meta: m.percentual_meta != null ? Number(m.percentual_meta) : null,
+      }));
+    } catch (err) {
+      console.warn('[SSO] carregarMetas falhou:', err);
+      return [];
+    }
+  }
+
+  return { dispararSync, recarregarDados, carregarMetas, CORTE_DATA };
 })();

@@ -1,0 +1,248 @@
+/* =============================================================================
+   metas.css — Seção Metas e Performance — Dashboard SSO
+   Identidade visual existente mantida. Nenhuma classe anterior alterada.
+   ============================================================================= */
+
+/* ── Seção principal ──────────────────────────────────────────────────────── */
+.metas-section {
+  padding: 0 var(--page-px, 24px) 40px;
+  max-width: var(--page-max, 1440px);
+  margin: 0 auto;
+}
+
+.metas-aviso {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--amber-400, #f59e0b);
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  border-radius: 6px;
+  padding: 6px 12px;
+}
+
+/* ── Grid de KPI de metas ─────────────────────────────────────────────────── */
+.metas-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1200px) {
+  .metas-kpi-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 640px) {
+  .metas-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 400px) {
+  .metas-kpi-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Meta card ────────────────────────────────────────────────────────────── */
+.meta-card {
+  background: var(--surface-card, #1c1f2e);
+  border: 1px solid var(--border-card, rgba(255,255,255,.06));
+  border-radius: 12px;
+  padding: 16px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+  transition: border-color .18s;
+}
+.meta-card:hover { border-color: rgba(255,255,255,.12); }
+
+.meta-card-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(99,102,241,.13);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+  color: #818cf8;
+}
+.meta-card-icon--success { background: rgba(22,163,74,.13);  color: #4ade80; }
+.meta-card-icon--warn    { background: rgba(217,119,6,.13);  color: #fbbf24; }
+.meta-card-icon--gauge   { background: rgba(139,92,246,.13); color: #c4b5fd; }
+
+.meta-card-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--gray-400, #9ca3af);
+  line-height: 1.2;
+}
+.meta-card-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--gray-50, #f9fafb);
+  letter-spacing: -.02em;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.meta-card-sub {
+  font-size: 0.7rem;
+  color: var(--gray-400, #9ca3af);
+  min-height: 14px;
+}
+
+/* Estados especiais */
+.meta-card.sem-meta .meta-card-value {
+  font-size: 0.85rem;
+  color: var(--gray-500, #6b7280);
+  font-style: italic;
+  font-weight: 400;
+}
+.meta-card.atingido  { border-color: rgba(22,163,74,.3); }
+.meta-card.superado  { border-color: rgba(99,102,241,.35); }
+.meta-card.atrasado  { border-color: rgba(220,38,38,.25); }
+
+/* ── Barra de progresso ───────────────────────────────────────────────────── */
+.metas-progress-wrap {
+  background: var(--surface-card, #1c1f2e);
+  border: 1px solid var(--border-card, rgba(255,255,255,.06));
+  border-radius: 12px;
+  padding: 20px 22px 16px;
+  margin-bottom: 24px;
+}
+
+.metas-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+.metas-progress-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--gray-400, #9ca3af);
+}
+.metas-progress-pct {
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  color: var(--gray-50, #f9fafb);
+}
+
+.metas-bar-track {
+  position: relative;
+  height: 14px;
+  background: rgba(255,255,255,.06);
+  border-radius: 99px;
+  overflow: visible;
+}
+
+.metas-bar-fill {
+  position: absolute;
+  left: 0; top: 0;
+  height: 100%;
+  border-radius: 99px;
+  transition: width .55s cubic-bezier(.4,0,.2,1), background-color .3s;
+  max-width: 100%;
+}
+
+.metas-bar-excess {
+  position: absolute;
+  right: 0; top: 0;
+  height: 100%;
+  border-radius: 0 99px 99px 0;
+  background: linear-gradient(90deg, #6366f1, #818cf8);
+  transition: width .55s cubic-bezier(.4,0,.2,1);
+}
+
+.metas-bar-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-size: 0.67rem;
+  color: var(--gray-500, #6b7280);
+}
+
+/* ── Ranking por vendedor ─────────────────────────────────────────────────── */
+.metas-ranking-wrap {
+  background: var(--surface-card, #1c1f2e);
+  border: 1px solid var(--border-card, rgba(255,255,255,.06));
+  border-radius: 12px;
+  overflow: hidden;
+}
+.metas-ranking-header {
+  padding: 14px 20px 10px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+.metas-ranking-scroll {
+  overflow-x: auto;
+}
+.metas-ranking-table th,
+.metas-ranking-table td {
+  padding: 10px 14px;
+  text-align: right;
+  white-space: nowrap;
+}
+.metas-ranking-table th:first-child,
+.metas-ranking-table td:first-child,
+.metas-ranking-table th:nth-child(2),
+.metas-ranking-table td:nth-child(2),
+.metas-ranking-table th:last-child,
+.metas-ranking-table td:last-child {
+  text-align: left;
+}
+.metas-ranking-table .td-pos {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--gray-400, #9ca3af);
+  width: 36px;
+}
+.metas-ranking-table .td-pos.pos-1 { color: #f59e0b; }
+.metas-ranking-table .td-pos.pos-2 { color: #94a3b8; }
+.metas-ranking-table .td-pos.pos-3 { color: #b45309; }
+
+.metas-ranking-table .td-sem-meta {
+  color: var(--gray-500, #6b7280);
+  font-style: italic;
+  font-size: 0.78rem;
+}
+
+/* Mini barra inline no ranking */
+.mini-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+}
+.mini-bar-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(255,255,255,.07);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.mini-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width .4s ease;
+  min-width: 2px;
+}
+.mini-bar-pct {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--gray-300, #d1d5db);
+  min-width: 42px;
+  text-align: right;
+}
+
+/* Zebra no ranking */
+.metas-ranking-table tbody tr:nth-child(even) {
+  background: rgba(255,255,255,.018);
+}
+.metas-ranking-table tbody tr:hover {
+  background: rgba(255,255,255,.035);
+}

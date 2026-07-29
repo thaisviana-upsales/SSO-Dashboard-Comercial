@@ -14,6 +14,7 @@
     dateEnd: null,
     vendedorMetric: 'propostas',
     tableSort: { col: 'propostas', asc: false },
+    metas: [],  // array de metas carregadas do Supabase (metas_comerciais)
   };
 
   let filtered = [];
@@ -286,11 +287,130 @@
     URL.revokeObjectURL(url);
   }
 
+  // ── Metas e Performance ──────────────────────────────────────────────
+  function renderMetas() {
+    if (typeof Goals === 'undefined') return;
+
+    const k = Engine.kpis(filtered, state.months, state.dateStart, state.dateEnd);
+    const metas = state.metas || [];
+    const semMetas = metas.length === 0;
+
+    // Aviso de sem dados
+    const avisoEl = $('metas-sem-dados');
+    if (avisoEl) avisoEl.style.display = semMetas ? '' : 'none';
+
+    // Label de período
+    const fmtBRd = d => d ? d.split('-').reverse().join('/') : '';
+    const periodLabel = state.dateStart
+      ? (state.dateEnd && state.dateEnd !== state.dateStart
+          ? `${fmtBRd(state.dateStart)} a ${fmtBRd(state.dateEnd)}`
+          : fmtBRd(state.dateStart))
+      : (state.months.length
+          ? state.months.map(m => Engine.MES_NOME_FULL[m]).join(', ') + ' 2026'
+          : 'Jan a Dez 2026');
+    const lbl = $('metas-period-label');
+    if (lbl) lbl.textContent = periodLabel;
+
+    const kpis = Goals.calcularKpisMetas(metas, state, k.fatVendas);
+
+    const fmt = v => v != null ? Engine.fmtBRL(v) : '—';
+    const fmtP = v => v != null ? v.toFixed(1) + '%' : '—';
+
+    // Preencher cards
+    const setCard = (idVal, idSub, val, subTxt, cls) => {
+      const el = $(idVal);
+      if (el) {
+        el.textContent = val;
+        const card = el.closest('.meta-card');
+        if (card) {
+          card.classList.remove('sem-meta', 'atingido', 'superado', 'atrasado');
+          if (cls) card.classList.add(cls);
+        }
+      }
+      const sub = $(idSub);
+      if (sub) sub.textContent = subTxt || '';
+    };
+
+    if (kpis.semMeta) {
+      setCard('mv-meta',         'ms-meta',         'Sem meta cadastrada', '', 'sem-meta');
+      setCard('mv-realizado',    'ms-realizado',     fmt(kpis.realizado), '', '');
+      setCard('mv-atingimento',  'ms-atingimento',  '—', 'Sem meta', 'sem-meta');
+      setCard('mv-falta',        'ms-falta',        '—', 'Sem meta', 'sem-meta');
+      setCard('mv-proporcional', 'ms-proporcional', '—', '', 'sem-meta');
+      setCard('mv-ritmo',        'ms-ritmo',        '—', '', 'sem-meta');
+    } else {
+      const pct    = kpis.atingimento;
+      const cls    = pct >= 100 ? 'atingido' : (pct >= 70 ? '' : 'atrasado');
+      const clsSup = pct > 100 ? 'superado' : '';
+      setCard('mv-meta',         'ms-meta',         fmt(kpis.meta),        '', '');
+      setCard('mv-realizado',    'ms-realizado',     fmt(kpis.realizado),  '', cls);
+      setCard('mv-atingimento',  'ms-atingimento',  fmtP(pct),            pct >= 100 ? 'Meta atingida' : '', cls);
+      setCard('mv-falta',        'ms-falta',        fmt(kpis.faltaMeta),  kpis.superado > 0 ? 'Superado!' : '', kpis.superado > 0 ? 'atingido' : cls);
+      setCard('mv-proporcional', 'ms-proporcional', kpis.metaAteHoje != null ? fmt(kpis.metaAteHoje) : '—', 'Acumulado até hoje', '');
+      setCard('mv-ritmo',        'ms-ritmo',        kpis.ritmo != null ? fmtP(kpis.ritmo) : '—', 'Vs meta proporcional', kpis.ritmo != null && kpis.ritmo >= 100 ? 'atingido' : '');
+    }
+
+    // Barra de progresso
+    const barFill = $('metas-bar-fill');
+    const barExcess = $('metas-bar-excess');
+    const pctLabel = $('metas-pct-label');
+    if (barFill && barExcess && pctLabel) {
+      const pct = kpis.semMeta ? 0 : (kpis.atingimento || 0);
+      const cor = Goals.corProgresso(kpis.semMeta ? null : pct);
+      pctLabel.textContent = kpis.semMeta ? '—' : fmtP(pct);
+
+      if (pct > 100) {
+        barFill.style.width = '100%';
+        barFill.style.backgroundColor = '#16a34a';
+        barExcess.style.width = Math.min((pct - 100), 30) + '%';
+        barExcess.style.display = '';
+      } else {
+        barFill.style.width = Math.min(pct, 100) + '%';
+        barFill.style.backgroundColor = cor;
+        barExcess.style.display = 'none';
+      }
+    }
+
+    // Ranking
+    const rankingBody = $('metas-ranking-body');
+    if (rankingBody && typeof Goals.calcularRankingMetas === 'function') {
+      const byVend = Engine.byVendedor(filtered, state.months, state.dateStart, state.dateEnd);
+      const ranking = Goals.calcularRankingMetas(metas, byVend, state);
+
+      if (!ranking.length) {
+        rankingBody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--gray-400);font-style:italic">Sem dados para o filtro selecionado</td></tr>';
+      } else {
+        rankingBody.innerHTML = ranking.map((r, i) => {
+          const pos = i + 1;
+          const posCls = pos === 1 ? 'pos-1' : pos === 2 ? 'pos-2' : pos === 3 ? 'pos-3' : '';
+          const pct = r.atingimento != null ? Math.min(r.atingimento, 100) : 0;
+          const cor = Goals.corProgresso(r.semMeta ? null : r.atingimento);
+          const barW = r.semMeta ? 0 : pct;
+          return `<tr>
+            <td class="td-pos ${posCls}">${pos}</td>
+            <td class="td-vendor">${escHTML(r.vendedor)}</td>
+            <td>${r.semMeta ? '<span class="td-sem-meta">Sem meta</span>' : Engine.fmtBRL(r.meta)}</td>
+            <td>${Engine.fmtBRL(r.realizado)}</td>
+            <td>${r.semMeta ? '<span class="td-sem-meta">—</span>' : (r.atingimento.toFixed(1) + '%')}</td>
+            <td>${r.semMeta ? '<span class="td-sem-meta">—</span>' : Engine.fmtBRL(r.faltaMeta)}</td>
+            <td>
+              <div class="mini-bar-wrap">
+                <div class="mini-bar-track"><div class="mini-bar-fill" style="width:${barW.toFixed(1)}%;background:${cor}"></div></div>
+                <span class="mini-bar-pct">${r.semMeta ? '—' : (r.atingimento.toFixed(0) + '%')}</span>
+              </div>
+            </td>
+          </tr>`;
+        }).join('');
+      }
+    }
+  }
+
   // ── Renderização total ────────────────────────────────────────────────
   function renderAll() {
     renderKPIs();
     renderCharts();
     renderTable();
+    renderMetas();
   }
 
   // ── Wiring de eventos ─────────────────────────────────────────────────
@@ -389,6 +509,11 @@
 
           const resultado = await SSO_SUPABASE.recarregarDados(ALL);
 
+          // Recarregar metas também após sync
+          if (SSO_SUPABASE.carregarMetas) {
+            state.metas = await SSO_SUPABASE.carregarMetas(2026);
+          }
+
           const s = syncResData.summary || {};
           const nowStr = new Date().toLocaleString('pt-BR');
           if ($('last-update')) $('last-update').textContent = 'Atualizado: ' + nowStr;
@@ -398,7 +523,8 @@
             `Atualizados: ${s.updated || 0}\n` +
             `Inalterados: ${s.skipped || 0}\n\n` +
             `Histórico jan-jun: ${resultado.historico} registros\n` +
-            `Live jul+: ${resultado.live} registros`
+            `Live jul+: ${resultado.live} registros\n` +
+            `Metas carregadas: ${state.metas.length}`
           );
         } catch (err) {
           console.error('[SSO] Erro na sincronização:', err);
@@ -454,8 +580,12 @@
     // Carga live em segundo plano — busca GOOGLE_SHEETS_LIVE do Supabase sem
     // bloquear a UI. O histórico jan-jun (1.157 registros) é preservado intacto.
     if (typeof SSO_SUPABASE !== 'undefined') {
-      SSO_SUPABASE.recarregarDados(ALL)
-        .then(resultado => {
+      // Carga paralela: dados comerciais + metas
+      Promise.all([
+        SSO_SUPABASE.recarregarDados(ALL),
+        SSO_SUPABASE.carregarMetas ? SSO_SUPABASE.carregarMetas(2026) : Promise.resolve([]),
+      ]).then(([resultado, metas]) => {
+          state.metas = metas;
           const nowStr = new Date().toLocaleString('pt-BR');
           if ($('last-update')) {
             $('last-update').textContent =

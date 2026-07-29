@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/qualidade.css">
   <link rel="stylesheet" href="css/datepicker.css">
+  <link rel="stylesheet" href="css/metas.css">
   <style>
     .filter-strip {
       top: calc(var(--header-h) + 44px);
@@ -387,6 +388,130 @@
       </div>
     </div>
 
+    <!-- ════════════════════════════════════════════════════════
+         METAS E PERFORMANCE
+    ════════════════════════════════════════════════════════ -->
+    <section id="section-metas" class="metas-section">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Metas e Performance</div>
+          <div class="section-sub" id="metas-period-label">Período selecionado</div>
+        </div>
+        <div id="metas-sem-dados" class="metas-aviso" style="display:none">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="15" height="15"><path d="M8 2v7M8 12v1.5"/><circle cx="8" cy="8" r="7"/></svg>
+          Sincronize a planilha para carregar as metas.
+        </div>
+      </div>
+
+      <!-- Cards de KPI de Metas -->
+      <div class="metas-kpi-grid" id="metas-kpi-grid">
+
+        <div class="meta-card" id="mc-meta">
+          <div class="meta-card-icon">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="8" cy="8" r="6"/><path d="M8 4v4l3 1.5"/>
+            </svg>
+          </div>
+          <span class="meta-card-label">Meta do Período</span>
+          <span class="meta-card-value" id="mv-meta">—</span>
+          <span class="meta-card-sub" id="ms-meta"></span>
+        </div>
+
+        <div class="meta-card" id="mc-realizado">
+          <div class="meta-card-icon meta-card-icon--success">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M13 4L6 11 3 8"/>
+            </svg>
+          </div>
+          <span class="meta-card-label">Realizado</span>
+          <span class="meta-card-value" id="mv-realizado">—</span>
+          <span class="meta-card-sub" id="ms-realizado"></span>
+        </div>
+
+        <div class="meta-card" id="mc-atingimento">
+          <div class="meta-card-icon meta-card-icon--gauge">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2 10a6 6 0 1 1 12 0"/><path d="M8 10L5 7"/>
+            </svg>
+          </div>
+          <span class="meta-card-label">Atingimento</span>
+          <span class="meta-card-value" id="mv-atingimento">—</span>
+          <span class="meta-card-sub" id="ms-atingimento"></span>
+        </div>
+
+        <div class="meta-card" id="mc-falta">
+          <div class="meta-card-icon meta-card-icon--warn">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M8 2v7M8 12.5v1"/><path d="M1 14L8 2l7 12H1z"/>
+            </svg>
+          </div>
+          <span class="meta-card-label">Falta para Meta</span>
+          <span class="meta-card-value" id="mv-falta">—</span>
+          <span class="meta-card-sub" id="ms-falta"></span>
+        </div>
+
+        <div class="meta-card" id="mc-proporcional">
+          <div class="meta-card-icon">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2 12l3-5 3 3 2-4 4 6H2z"/>
+            </svg>
+          </div>
+          <span class="meta-card-label">Meta Proporcional até Hoje</span>
+          <span class="meta-card-value" id="mv-proporcional">—</span>
+          <span class="meta-card-sub" id="ms-proporcional"></span>
+        </div>
+
+        <div class="meta-card" id="mc-ritmo">
+          <div class="meta-card-icon meta-card-icon--gauge">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2 8h12M10 4l4 4-4 4"/>
+            </svg>
+          </div>
+          <span class="meta-card-label">Ritmo Necessário</span>
+          <span class="meta-card-value" id="mv-ritmo">—</span>
+          <span class="meta-card-sub" id="ms-ritmo"></span>
+        </div>
+
+      </div>
+
+      <!-- Barra de progresso geral -->
+      <div class="metas-progress-wrap" id="metas-progress-wrap">
+        <div class="metas-progress-header">
+          <span class="metas-progress-label">Atingimento do Período</span>
+          <span class="metas-progress-pct" id="metas-pct-label">—</span>
+        </div>
+        <div class="metas-bar-track" id="metas-bar-track">
+          <div class="metas-bar-fill" id="metas-bar-fill" style="width:0%"></div>
+          <div class="metas-bar-excess" id="metas-bar-excess" style="width:0%;display:none"></div>
+        </div>
+        <div class="metas-bar-ticks">
+          <span>0%</span><span>70%</span><span>100%</span>
+        </div>
+      </div>
+
+      <!-- Ranking por Vendedor -->
+      <div class="metas-ranking-wrap">
+        <div class="metas-ranking-header">
+          <span class="section-title" style="font-size:0.92rem">Ranking por Vendedor</span>
+        </div>
+        <div class="table-wrapper metas-ranking-scroll">
+          <table class="exec-table metas-ranking-table" id="metas-ranking-table">
+            <thead><tr>
+              <th>Pos.</th>
+              <th>Vendedor</th>
+              <th>Meta</th>
+              <th>Realizado</th>
+              <th>Atingimento</th>
+              <th>Falta</th>
+              <th style="min-width:160px">Progresso</th>
+            </tr></thead>
+            <tbody id="metas-ranking-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
   </main>
 
   <!-- ═══════════════════════════════════════════════════════
@@ -414,6 +539,7 @@
   <script src="js/engine.js"></script>
   <script src="js/supabase-client.js"></script>
   <script src="js/datepicker.js"></script>
+  <script src="js/goals.js"></script>
   <script src="js/charts.js"></script>
   <script src="js/app.js"></script>
 </body>

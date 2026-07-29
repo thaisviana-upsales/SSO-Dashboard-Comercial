@@ -147,11 +147,41 @@ serve(async (req) => {
         );
       }
 
-      rows          = (appsData.rows as Record<string, unknown>[]) ?? [];
-      appsScriptLog = (appsData.log  as unknown[]) ?? [];
+      rows          = (appsData.rows  as Record<string, unknown>[]) ?? [];
+      appsScriptLog = (appsData.log   as unknown[]) ?? [];
 
       if (appsData.spreadsheet_id) {
         spreadsheetId = appsData.spreadsheet_id as string;
+      }
+
+      // ── Upsert de metas (bloco separado, não afeta registros_comerciais) ─
+      const metasRows = (appsData.metas as Record<string, unknown>[]) ?? [];
+      if (metasRows.length > 0) {
+        console.log(`[sync-sheets] Upserting ${metasRows.length} metas`);
+        const metasPayload = metasRows.map((m: Record<string, unknown>) => ({
+          ano            : m.ano,
+          mes            : m.mes,
+          vendedor       : m.vendedor,
+          percentual_meta: m.percentual_meta ?? null,
+          meta_mensal    : m.meta_mensal    ?? null,
+          dias_uteis_mes : m.dias_uteis_mes ?? null,
+          spreadsheet_id : spreadsheetId,
+          source_sheet   : "Metas",
+          synced_at      : new Date().toISOString(),
+        }));
+
+        const { error: metasErr } = await supabase
+          .from("metas_comerciais")
+          .upsert(metasPayload, {
+            onConflict    : "ano,mes,vendedor",
+            ignoreDuplicates: false,
+          });
+
+        if (metasErr) {
+          console.error("[sync-sheets] Erro ao upsert metas:", metasErr.message);
+        } else {
+          console.log(`[sync-sheets] Metas salvas: ${metasPayload.length}`);
+        }
       }
 
       console.log(`[sync-sheets] Apps Script retornou ${rows.length} linhas`);

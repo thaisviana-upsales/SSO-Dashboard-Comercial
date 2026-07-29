@@ -85,6 +85,7 @@ function doPost(e) {
     }
 
     const result = lerDadosSanitizados();
+    const metas  = lerMetasSanitizadas();
 
     return _json({
       success       : true,
@@ -92,6 +93,8 @@ function doPost(e) {
       extracted_at  : new Date().toISOString(),
       total_rows    : result.rows.length,
       rows          : result.rows,
+      metas         : metas.registros,
+      metas_log     : metas.log,
       log           : result.log     // por aba: lido, válido, ignorado, motivos
     });
 
@@ -105,7 +108,7 @@ function _json(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-/* ─── 3. TESTE MANUAL (rodar direto no Apps Script) ──────────────────── */
+/* ─── 3. TESTE MANUAL (rodar direto no Apps Script) ─────────────────── */
 function testarLeitura() {
   const result = lerDadosSanitizados();
   Logger.log("=== RESUMO ===");
@@ -115,6 +118,235 @@ function testarLeitura() {
     Logger.log("Primeiro registro: " + JSON.stringify(result.rows[0], null, 2));
   }
   return result;
+}
+
+/* ─── 4. TESTE DE METAS (rodar direto no Apps Script) ───────────────── */
+function testarMetas() {
+  const metas = lerMetasSanitizadas();
+  Logger.log("=== METAS ===");
+  Logger.log(JSON.stringify(metas.log));
+  Logger.log("Total de registros: " + metas.registros.length);
+  metas.registros.forEach(function(m) { Logger.log(JSON.stringify(m)); });
+
+  // Validação agosto (valores esperados):
+  var agosto = metas.registros.filter(function(m) { return m.mes === 8 && m.ano === 2026; });
+  Logger.log("=== AGOSTO 2026 ===");
+  agosto.forEach(function(m) {
+    Logger.log(m.vendedor + " -> R$ " + m.meta_mensal + " | dias_uteis: " + m.dias_uteis_mes);
+  });
+  return metas;
+}
+
+/* ─── 5. LEITURA DE METAS DA ABA 'Metas' ──────────────────────── */
+/**
+ * lerMetasSanitizadas — Lê a aba "Metas" e extrai blocos mensais.
+ *
+ * Estrutura esperada da aba Metas:
+ *   Linha N:   col A contendo "% DE META" (marcador de início de bloco)
+ *   Linha N+1: col B = nome do mês (ex: "Agosto"), col I = meta geral (R$)
+ *   Linhas...: col A = percentual (número), col B = nome vendedor, col C = meta mensal (R$)
+ *   Linha X:   col B = "Dias Uteis" (ou variação), col I = total de dias úteis
+ *
+ * Retorna:
+ *   { registros: [...], log: [...] }
+ *
+ * Cada registro tem:
+ *   { ano, mes, vendedor, percentual_meta, meta_mensal, dias_uteis_mes }
+ *   vendedor = "GERAL" para a meta global; nome normalizado para cada consultor
+ */
+function lerMetasSanitizadas() {
+  var ss    = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  var sheet = ss.getSheetByName("Metas");
+  var log   = [];
+  var registros = [];
+
+  if (!sheet) {
+    log.push({ erro: "Aba 'Metas' não encontrada na planilha." });
+    return { registros: registros, log: log };
+  }
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = Math.max(sheet.getLastColumn(), 9); // mínimo coluna I
+  if (lastRow < 2) {
+    log.push({ erro: "Aba 'Metas' vazia." });
+    return { registros: registros, log: log };
+  }
+
+  // Lê todos os dados de uma vez (performance)
+  var dados = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+
+  // Mapa de nomes de mês em português para número
+  var MESES = {
+    "JANEIRO":1, "FEVEREIRO":2, "MARCO":3, "ABRIL":4,
+    "MAIO":5, "JUNHO":6, "JULHO":7, "AGOSTO":8,
+    "SETEMBRO":9, "OUTUBRO":10, "NOVEMBRO":11, "DEZEMBRO":12
+  };
+
+  var i = 0;
+  var blocos = 0;
+
+  while (i < dados.length) {
+    var linha = dados[i];
+    var colA  = normalizarVendedor(String(linha[0] || ""));
+
+    // Detectar início de bloco pela coluna A contendo "% DE META"
+    if (colA.indexOf("% DE META") === -1 && colA.indexOf("%DE META") === -1 &&
+        colA.indexOf("% META") === -1) {
+      i++;
+      continue;
+    }
+
+    // Linha N+1: mês na col B, meta geral na col I
+    if (i + 1 >= dados.length) { i++; continue; }
+    var linhaMes = dados[i + 1];
+    var nomeMes  = normalizarVendedor(String(linhaMes[1] || ""));
+    // Remove acentos para comparar
+    var nomeMesSem = removerAcentos(nomeMes);
+    var mesNum   = MESES[nomeMesSem] || null;
+
+    if (!mesNum) {
+      log.push({ aviso: "Bloco iniciado na linha " + (i+1) + " mas mes=" + nomeMes + " não reconhecido. Ignorado." });
+      i += 2;
+      continue;
+    }
+
+    var anoAtual = 2026; // fixo para este dashboard
+    var metaGeralRaw = linhaMes[8]; // coluna I (0-indexed = 8)
+    var metaGeral    = parseCurrencyMeta(metaGeralRaw);
+    var diasUteisMes = null;
+    blocos++;
+
+    // Adicionar registro GERAL
+    registros.push({
+      ano            : anoAtual,
+      mes            : mesNum,
+      vendedor       : "GERAL",
+      percentual_meta: null,
+      meta_mensal    : metaGeral,
+      dias_uteis_mes : null   // preenchido ao encontrar a linha "Dias Uteis"
+    });
+
+    // Ler linhas de vendedores até o próximo bloco ou fim da planilha
+    var j = i + 2;
+    while (j < dados.length) {
+      var lv     = dados[j];
+      var lvColA = normalizarVendedor(String(lv[0] || ""));
+
+      // Novo bloco começa?
+      if (lvColA.indexOf("% DE META") !== -1 || lvColA.indexOf("%DE META") !== -1 ||
+          lvColA.indexOf("% META") !== -1) {
+        break;
+      }
+
+      var lvColB = String(lv[1] || "").trim();
+      var lvColBNorm = normalizarVendedor(lvColB);
+      var lvColBSem  = removerAcentos(lvColBNorm);
+
+      // Linha de dias úteis
+      if (lvColBSem.indexOf("DIAS UTEIS") !== -1 || lvColBSem.indexOf("DIAS UTEIS") !== -1 ||
+          lvColBSem.indexOf("DIAS UTEI") !== -1) {
+        var duRaw = lv[8]; // coluna I
+        var du    = parseInt(String(duRaw || "").replace(/\D/g, ""), 10);
+        if (!isNaN(du) && du > 0) {
+          diasUteisMes = du;
+          // Atualiza o registro GERAL com os dias úteis
+          for (var g = registros.length - 1; g >= 0; g--) {
+            if (registros[g].mes === mesNum && registros[g].vendedor === "GERAL") {
+              registros[g].dias_uteis_mes = du;
+              break;
+            }
+          }
+          // Atualiza todos os vendedores do mesmo mês
+          registros.forEach(function(r) {
+            if (r.mes === mesNum && r.ano === anoAtual && r.dias_uteis_mes === null) {
+              r.dias_uteis_mes = du;
+            }
+          });
+        }
+        j++;
+        continue;
+      }
+
+      // Linha de vendedor: col A deve ser numérico (percentual) e col B ter nome
+      var pctRaw   = lv[0];
+      var pctVal   = parsePorcentagem(pctRaw);
+      var metaV    = parseCurrencyMeta(lv[2]);  // coluna C
+      var nomeVend = lvColBNorm;
+
+      // Linha válida de vendedor: nome não vazio e (percentual ou meta preenchidos)
+      if (nomeVend && (pctVal !== null || metaV !== null)) {
+        registros.push({
+          ano            : anoAtual,
+          mes            : mesNum,
+          vendedor       : nomeVend,
+          percentual_meta: pctVal,
+          meta_mensal    : metaV,
+          dias_uteis_mes : diasUteisMes
+        });
+      }
+
+      j++;
+    }
+
+    // Atualiza index para o próximo bloco
+    i = j;
+  }
+
+  log.push({ blocos_encontrados: blocos, registros_gerados: registros.length });
+  return { registros: registros, log: log };
+}
+
+/**
+ * normalizarVendedor — remove espaços extras e converte para maiúsculas.
+ * Não remove acentos (usado para identidade do registro).
+ */
+function normalizarVendedor(s) {
+  return String(s || "").trim().toUpperCase().replace(/\s+/g, " ");
+}
+
+/**
+ * removerAcentos — remove acentos para comparação interna.
+ * Usado somente para detectar nome de mês e chaves especiais.
+ */
+function removerAcentos(s) {
+  return String(s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+}
+
+/**
+ * parseCurrencyMeta — converte valor de célula em número.
+ * Aceita: número JS, string "R$ 450.825,69", "450825,69", "450825.69".
+ */
+function parseCurrencyMeta(raw) {
+  if (raw === null || raw === undefined || raw === "") return null;
+  if (typeof raw === "number") return Number.isFinite(raw) ? Math.round(raw * 100) / 100 : null;
+  var s = String(raw)
+    .replace(/R\$\s*/gi, "")
+    .replace(/\./g, "")   // remove ponto de milhar
+    .replace(",", ".")    // vírgula vira ponto decimal
+    .trim();
+  var n = parseFloat(s);
+  return isNaN(n) ? null : Math.round(n * 100) / 100;
+}
+
+/**
+ * parsePorcentagem — converte percentual de célula.
+ * Aceita: 0.35 (decimal), 35 (inteiro = 35%), "35%".
+ * Retorna sempre como decimal (0.35).
+ */
+function parsePorcentagem(raw) {
+  if (raw === null || raw === undefined || raw === "") return null;
+  if (typeof raw === "number") {
+    if (!Number.isFinite(raw)) return null;
+    // Se > 1, assume que é percentual inteiro (ex: 35 = 35%)
+    return raw > 1 ? raw / 100 : raw;
+  }
+  var s = String(raw).replace(/[%\s]/g, "").replace(",", ".");
+  var n = parseFloat(s);
+  if (isNaN(n)) return null;
+  return n > 1 ? n / 100 : n;
 }
 
 /* ─── 4. GERAR IDs AUSENTES NA PLANILHA ──────────────────────────────── */
