@@ -118,7 +118,16 @@ window.SSO_SUPABASE = (() => {
         if (r.data_envio_orcamento && r.data_envio_orcamento >= CORTE_DATA) return true;
         return false;
       })
-      .map(normalizarRegistroLive);
+      .map(r => {
+        // Registro de transição: oportunidade pré-Julho mas proposta/venda em Julho.
+        // Anula data_referencia no CLIENTE para evitar dupla contagem de leads com EXCEL_HISTORICO.
+        // Proposta e venda continuam contadas corretamente pelos seus campos de data.
+        const isTransicao = r.data_referencia && r.data_referencia < CORTE_DATA;
+        if (isTransicao) {
+          r = { ...r, data_referencia: null, mes_numero: null, mes_referencia: null, ano_referencia: null };
+        }
+        return normalizarRegistroLive(r);
+      });
 
   }
 

@@ -123,7 +123,10 @@ class SSODatePicker {
 
   _openPanel() {
     this._close();
-    this._navDate = this._clampNav(this._start || this._today());
+    // Abre sempre no mês de hoje quando não há data selecionada.
+    // Se há seleção ativa, abre no mês do início da seleção.
+    const baseDate = this._start || this._today();
+    this._navDate = this._clampNav(baseDate);
     this._panel = document.createElement('div');
     this._panel.className = 'dp-panel';
     this._panel.addEventListener('click', e => e.stopPropagation());

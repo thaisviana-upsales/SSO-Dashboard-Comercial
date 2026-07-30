@@ -405,12 +405,13 @@
     }
   }
 
-  // ── Renderização total ────────────────────────────────────────────────
+  // ── Renderização total ────────────────────────────────────────────
   function renderAll() {
     renderKPIs();
     renderCharts();
     renderTable();
-    renderMetas();
+    // renderMetas isolado: erro aqui nunca afeta KPIs, gráficos ou tabela
+    try { renderMetas(); } catch(e) { console.warn('[SSO] renderMetas falhou:', e); }
   }
 
   // ── Wiring de eventos ─────────────────────────────────────────────────
@@ -579,13 +580,12 @@
 
     // Carga live em segundo plano — busca GOOGLE_SHEETS_LIVE do Supabase sem
     // bloquear a UI. O histórico jan-jun (1.157 registros) é preservado intacto.
+    // ATENÇÃO: dados comerciais e metas são carregados SEPARADAMENTE para que
+    // falha em metas não bloqueie os dados live principais.
     if (typeof SSO_SUPABASE !== 'undefined') {
-      // Carga paralela: dados comerciais + metas
-      Promise.all([
-        SSO_SUPABASE.recarregarDados(ALL),
-        SSO_SUPABASE.carregarMetas ? SSO_SUPABASE.carregarMetas(2026) : Promise.resolve([]),
-      ]).then(([resultado, metas]) => {
-          state.metas = metas;
+      // 1. Carrega dados comerciais live (crítico)
+      SSO_SUPABASE.recarregarDados(ALL)
+        .then(resultado => {
           const nowStr = new Date().toLocaleString('pt-BR');
           if ($('last-update')) {
             $('last-update').textContent =
@@ -594,6 +594,16 @@
               ' · Live jul+: ' + resultado.live;
           }
           applyFilters();
+
+          // 2. Carrega metas em segundo plano (não crítico)
+          if (SSO_SUPABASE.carregarMetas) {
+            SSO_SUPABASE.carregarMetas(2026)
+              .then(metas => {
+                state.metas = metas || [];
+                try { renderMetas(); } catch(e) { console.warn('[SSO] renderMetas:', e); }
+              })
+              .catch(err => console.warn('[SSO] carregarMetas falhou:', err));
+          }
         })
         .catch(err => {
           console.warn('[SSO] Carga live falhou — exibindo somente dados históricos:', err);
